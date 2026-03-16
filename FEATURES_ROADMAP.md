@@ -23,6 +23,7 @@
 - ✅ Proximity detection with geofencing logic
 - ✅ Notification system with Android 13+ permission handling
 - ✅ Toronto Bike Share data integration (20 stations from JSON)
+- ✅ Added FIXME POI query from OSM Overpass API
 
 ## ✅ COMPLETED PHASES
 

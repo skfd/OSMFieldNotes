@@ -113,6 +113,10 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             buttonFindBikes.setOnClickListener {
                 findBikes()
             }
+
+            buttonFindFixme.setOnClickListener {
+                findFixme()
+            }
         }
     }
 
@@ -172,6 +176,44 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                     // or maybe just keep it disabled to avoid spamming errors.
                 }
                 Timber.e(e, "Error searching for bikes")
+            }
+        }
+    }
+
+    private fun findFixme() {
+        binding.buttonFindFixme.isEnabled = false
+        binding.buttonFindFixme.alpha = 0.5f
+
+        val lastLocation = preferencesManager.getLastMapPosition()
+        val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
+        val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Searching for FIXME issues around last known map position...", Toast.LENGTH_SHORT).show()
+                }
+
+                val overpassService = OverpassService()
+                val issues = overpassService.fetchFixmePois(lat, lon, 2000)
+
+                if (issues.isNotEmpty()) {
+                    val repository = PoiManager.getRepository(requireContext())
+                    repository.insertPois(issues)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Found and saved ${issues.size} FIXME issues!", Toast.LENGTH_LONG).show()
+                        updatePoiCount()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "No FIXME issues found nearby.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error searching for FIXMEs: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                Timber.e(e, "Error searching for FIXMEs")
             }
         }
     }

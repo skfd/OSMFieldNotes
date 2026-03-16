@@ -54,7 +54,12 @@ class OverpassService {
                 }
 
                 val overpassResponse = gson.fromJson(responseBody, OverpassResponse::class.java)
-                return parseOverpassResponse(overpassResponse)
+                return parseOverpassResponse(
+                    response = overpassResponse,
+                    defaultName = "Docking Station",
+                    prefixDesc = "Bicycle Rental Docking Station",
+                    category = PoiCategory.PUBLIC_TRANSPORT
+                )
             }
         } catch (e: IOException) {
             Timber.e(e, "Error fetching data from Overpass API")
@@ -65,7 +70,60 @@ class OverpassService {
         }
     }
 
-    private fun parseOverpassResponse(response: OverpassResponse): List<Poi> {
+    fun fetchFixmePois(lat: Double, lon: Double, radius: Int = 1000): List<Poi> {
+        val query = """
+            [out:json][timeout:25];
+            (
+              node["fixme"](around:$radius,$lat,$lon);
+              way["fixme"](around:$radius,$lat,$lon);
+            );
+            out center;
+        """.trimIndent()
+
+        val url = "https://overpass-api.de/api/interpreter?data=${java.net.URLEncoder.encode(query, "UTF-8")}"
+
+        Timber.d("Fetching FIXME POIs from Overpass API: $url")
+
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.e("Overpass API request failed: ${response.code}")
+                    return emptyList()
+                }
+
+                val responseBody = response.body?.string()
+                if (responseBody == null) {
+                    Timber.e("Overpass API response body is empty")
+                    return emptyList()
+                }
+
+                val overpassResponse = gson.fromJson(responseBody, OverpassResponse::class.java)
+                return parseOverpassResponse(
+                    response = overpassResponse,
+                    defaultName = "FIXME Issue",
+                    prefixDesc = "Needs fixing:",
+                    category = PoiCategory.UNKNOWN
+                )
+            }
+        } catch (e: IOException) {
+            Timber.e(e, "Error fetching data from Overpass API")
+            return emptyList()
+        } catch (e: Exception) {
+            Timber.e(e, "Unexpected error parsing Overpass API response")
+            return emptyList()
+        }
+    }
+
+    private fun parseOverpassResponse(
+        response: OverpassResponse,
+        defaultName: String,
+        prefixDesc: String,
+        category: PoiCategory
+    ): List<Poi> {
         val pois = mutableListOf<Poi>()
 
         response.elements.forEach { element ->
@@ -75,14 +133,20 @@ class OverpassService {
                 val lon = element.lon ?: element.center?.lon
 
                 if (lat != null && lon != null) {
-                    val name = element.tags?.get("name") ?: "Docking Station" // Default name
+                    val name = element.tags?.get("name") ?: defaultName // Default name
                     val capacity = element.tags?.get("capacity")
                     val network = element.tags?.get("network")
+                    val fixme = element.tags?.get("fixme")
                     
                     val description = buildString {
-                        append("Bicycle Rental Docking Station")
-                        capacity?.let { append("\nCapacity: $it") }
-                        network?.let { append("\nNetwork: $it") }
+                        append(prefixDesc)
+                        if (prefixDesc == "Needs fixing:") {
+                            fixme?.let { append(" $it") }
+                        } else {
+                            capacity?.let { append("\nCapacity: $it") }
+                            network?.let { append("\nNetwork: $it") }
+                            fixme?.let { append("\nFixme: $it") }
+                        }
                     }
 
                     val poi = Poi(
@@ -91,7 +155,7 @@ class OverpassService {
                         description = description,
                         latitude = lat,
                         longitude = lon,
-                        category = PoiCategory.PUBLIC_TRANSPORT, // Fits best for bicycle rental
+                        category = category, // Fits best for bicycle rental
                         source = "overpass",
                         tags = element.tags ?: emptyMap()
                     )
