@@ -29,4 +29,10 @@
         android:label="@string/navigation_settings"
         tools:layout="@layout/fragment_settings" />
 
+    <fragment
+        android:id="@+id/notesFragment"
+        android:name="com.surveyme.presentation.notes.NotesFragment"
+        android:label="@string/navigation_notes"
+        tools:layout="@layout/fragment_notes" />
+
 </navigation>

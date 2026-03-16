@@ -42,7 +42,8 @@ class MainActivity : AppCompatActivity() {
             R.id.homeFragment,
             R.id.mapFragment,
             R.id.tracksFragment,
-            R.id.settingsFragment
+            R.id.settingsFragment,
+            R.id.notesFragment
         )
         appBarConfiguration = AppBarConfiguration(topLevelDestinations)
 

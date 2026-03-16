@@ -21,4 +21,9 @@
         android:icon="@drawable/ic_settings"
         android:title="@string/navigation_settings" />
 
+    <item
+        android:id="@+id/notesFragment"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="@string/navigation_notes" />
+
 </menu>

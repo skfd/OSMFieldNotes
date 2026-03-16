@@ -26,6 +26,8 @@ class PoiRepository(
     fun getPoisByCategory(category: PoiCategory): Flow<List<Poi>> =
         poiDao.getPoisByCategory(category)
 
+    fun getOsmNotes(): Flow<List<Poi>> = poiDao.getOsmNotes()
+
     fun getUnvisitedPois(): Flow<List<Poi>> = poiDao.getUnvisitedPois()
 
     suspend fun getPoiById(id: String): Poi? = poiDao.getPoiById(id)

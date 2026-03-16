@@ -26,6 +26,7 @@
 - ✅ Added FIXME POI query from OSM Overpass API
 - ✅ Added OSM Notes query and persistence on map location
 - ✅ Auto-fetch OSM Notes on startup and removed legacy POI code
+- ✅ Implemented OSM Notes tab with list and details view
 
 ## ✅ COMPLETED PHASES
 
