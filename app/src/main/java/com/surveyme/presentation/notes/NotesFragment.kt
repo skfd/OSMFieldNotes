@@ -85,7 +85,13 @@ class NotesFragment : Fragment() {
                             binding.progressBar.visibility = View.GONE
                             binding.recyclerViewNotes.visibility = View.VISIBLE
                             binding.textEmpty.visibility = View.GONE
-                            notesAdapter.submitList(state.notes)
+                            
+                            val isAtTop = !binding.recyclerViewNotes.canScrollVertically(-1)
+                            notesAdapter.submitList(state.notes) {
+                                if (isAtTop && state.notes.isNotEmpty()) {
+                                    binding.recyclerViewNotes.scrollToPosition(0)
+                                }
+                            }
                         }
                         is NotesViewModel.NotesState.Error -> {
                             binding.progressBar.visibility = View.GONE
