@@ -35,13 +35,9 @@ if ($null -eq $devices) {
     exit 1
 }
 
-# Uninstall existing app
-Write-Host "Uninstalling existing app (if any)..." -ForegroundColor Yellow
-& adb uninstall com.surveyme.debug 2>$null | Out-Null
-
-# Install new APK
+# Install new APK (replacing existing to keep data/permissions, and auto-granting permissions)
 Write-Host "Installing APK..." -ForegroundColor Yellow
-$result = & adb install app\build\outputs\apk\debug\app-debug.apk 2>&1
+$result = & adb install -r -g app\build\outputs\apk\debug\app-debug.apk 2>&1
 if ($result -match "Success") {
     Write-Host "App installed successfully!" -ForegroundColor Green
 
