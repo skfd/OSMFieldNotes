@@ -29,7 +29,7 @@ class NotesViewModel(
     private fun loadNotes() {
         viewModelScope.launch {
             _notesState.value = NotesState.Loading
-            repository.getOsmNotes()
+            repository.getNotesAndFixmes()
                 .catch { e ->
                     Timber.e(e, "Error loading OSM Notes")
                     _notesState.value = NotesState.Error(e.message ?: "Unknown error")

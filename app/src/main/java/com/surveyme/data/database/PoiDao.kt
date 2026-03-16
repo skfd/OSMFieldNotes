@@ -13,8 +13,8 @@ interface PoiDao {
     @Query("SELECT * FROM pois WHERE isActive = 1 AND category = :category ORDER BY priority DESC, createdAt DESC")
     fun getPoisByCategory(category: PoiCategory): Flow<List<Poi>>
 
-    @Query("SELECT * FROM pois WHERE isActive = 1 AND source = 'osm_notes' ORDER BY createdAt DESC")
-    fun getOsmNotes(): Flow<List<Poi>>
+    @Query("SELECT * FROM pois WHERE isActive = 1 AND (source = 'osm_notes' OR source = 'osm_fixme') ORDER BY createdAt DESC")
+    fun getNotesAndFixmes(): Flow<List<Poi>>
 
     @Query("SELECT * FROM pois WHERE id = :id LIMIT 1")
     suspend fun getPoiById(id: String): Poi?

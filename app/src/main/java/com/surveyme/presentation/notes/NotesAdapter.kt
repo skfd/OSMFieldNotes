@@ -45,6 +45,16 @@ class NotesAdapter(
                 textDescription.text = item.poi.description
                 textDate.text = "Created: ${dateFormat.format(item.poi.createdAt)}"
                 
+                if (item.poi.source == "osm_fixme") {
+                    textType.text = "FIXME"
+                    textType.visibility = android.view.View.VISIBLE
+                } else if (item.poi.source == "osm_notes") {
+                    textType.text = "NOTE"
+                    textType.visibility = android.view.View.VISIBLE
+                } else {
+                    textType.visibility = android.view.View.GONE
+                }
+                
                 if (item.distance != null) {
                     val distanceMeters = item.distance.roundToInt()
                     if (distanceMeters < 1000) {

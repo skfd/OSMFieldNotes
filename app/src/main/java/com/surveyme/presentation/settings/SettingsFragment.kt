@@ -108,55 +108,13 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 Toast.makeText(context, "GPX import coming soon!", Toast.LENGTH_SHORT).show()
             }
 
-            buttonFindFixme.setOnClickListener {
-                findFixme()
-            }
-
             buttonFindOsmNotes.setOnClickListener {
-                findOsmNotes()
+                findOsmNotesAndFixmes()
             }
         }
     }
 
-    private fun findFixme() {
-        binding.buttonFindFixme.isEnabled = false
-        binding.buttonFindFixme.alpha = 0.5f
-
-        val lastLocation = preferencesManager.getLastMapPosition()
-        val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
-        val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Searching for FIXME issues around last known map position...", Toast.LENGTH_SHORT).show()
-                }
-
-                val overpassService = OverpassService()
-                val issues = overpassService.fetchFixmePois(lat, lon, 2000)
-
-                if (issues.isNotEmpty()) {
-                    val repository = PoiManager.getRepository(requireContext())
-                    repository.insertPois(issues)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Found and saved ${issues.size} FIXME issues!", Toast.LENGTH_LONG).show()
-                        updatePoiCount()
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "No FIXME issues found nearby.", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Error searching for FIXMEs: ${e.message}", Toast.LENGTH_LONG).show()
-                }
-                Timber.e(e, "Error searching for FIXMEs")
-            }
-        }
-    }
-
-    private fun findOsmNotes() {
+    private fun findOsmNotesAndFixmes() {
         binding.buttonFindOsmNotes.isEnabled = false
         binding.buttonFindOsmNotes.alpha = 0.5f
 
@@ -167,29 +125,34 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Searching for OSM Notes around last known map position...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Searching for OSM Notes and FIXMEs around map position...", Toast.LENGTH_SHORT).show()
                 }
 
                 val notesService = OsmNotesService()
+                val overpassService = OverpassService()
+                
                 val notes = notesService.fetchNotes(lat, lon, 2000)
+                val fixmes = overpassService.fetchFixmePois(lat, lon, 2000)
+                
+                val combined = notes + fixmes
 
-                if (notes.isNotEmpty()) {
+                if (combined.isNotEmpty()) {
                     val repository = PoiManager.getRepository(requireContext())
-                    repository.insertPois(notes)
+                    repository.insertPois(combined)
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Found and saved ${notes.size} OSM Notes!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Found and saved ${notes.size} Notes and ${fixmes.size} FIXMEs!", Toast.LENGTH_LONG).show()
                         updatePoiCount()
                     }
                 } else {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "No OSM Notes found nearby.", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "No Notes or FIXMEs found nearby.", Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Error searching for OSM Notes: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Error searching: ${e.message}", Toast.LENGTH_LONG).show()
                 }
-                Timber.e(e, "Error searching for OSM Notes")
+                Timber.e(e, "Error searching for OSM Notes and FIXMEs")
             } finally {
                 withContext(Dispatchers.Main) {
                     binding.buttonFindOsmNotes.isEnabled = true

@@ -20,10 +20,25 @@
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceSubtitle1"
             android:textStyle="bold"
-            app:layout_constraintEnd_toStartOf="@+id/textDistance"
+            app:layout_constraintEnd_toStartOf="@+id/textType"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="OSM Note #12345" />
+
+        <TextView
+            android:id="@+id/textType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/colorPrimaryContainer"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textAppearance="?attr/textAppearanceOverline"
+            android:textColor="?attr/colorOnPrimaryContainer"
+            app:layout_constraintBottom_toBottomOf="@+id/textNoteId"
+            app:layout_constraintEnd_toStartOf="@+id/textDistance"
+            app:layout_constraintTop_toTopOf="@+id/textNoteId"
+            tools:text="FIXME" />
 
         <TextView
             android:id="@+id/textDistance"
