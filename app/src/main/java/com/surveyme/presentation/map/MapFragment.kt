@@ -34,6 +34,7 @@ import androidx.lifecycle.lifecycleScope
 import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
+import com.surveyme.data.OsmNotesService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -404,12 +405,17 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
             try {
                 val repository = PoiManager.getRepository(requireContext())
 
-                // Check if POIs exist, if not add sample POIs for testing
-                repository.getAllActivePois().take(1).collect { pois ->
-                    if (pois.isEmpty()) {
-                        Timber.d("No POIs found, adding sample POIs")
-                        repository.addSamplePois()
-                    }
+                // Fetch current OSM Notes in the area
+                val lastLocation = preferencesManager?.getLastMapPosition()
+                val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
+                val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+                
+                Timber.d("Fetching OSM Notes on map load around $lat, $lon")
+                val notesService = OsmNotesService()
+                val notes = notesService.fetchNotes(lat, lon, 2000)
+                
+                if (notes.isNotEmpty()) {
+                    repository.insertPois(notes)
                 }
 
                 // Now load and display POIs

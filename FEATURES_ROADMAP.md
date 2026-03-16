@@ -24,7 +24,8 @@
 - ✅ Notification system with Android 13+ permission handling
 - ✅ Toronto Bike Share data integration (20 stations from JSON)
 - ✅ Added FIXME POI query from OSM Overpass API
-- ✅ Added OSM Notes query and persistence
+- ✅ Added OSM Notes query and persistence on map location
+- ✅ Auto-fetch OSM Notes on startup and removed legacy POI code
 
 ## ✅ COMPLETED PHASES
 
