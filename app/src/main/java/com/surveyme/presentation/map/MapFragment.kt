@@ -45,7 +45,7 @@ import com.surveyme.service.LocationTrackingService
 import com.surveyme.data.model.ActiveTrack
 import kotlinx.coroutines.Job
 import java.util.Locale
-import androidx.navigation.fragment.findNavController
+import com.surveyme.presentation.notes.NotesFragment
 
 class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
@@ -464,17 +464,16 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
                 setOnMarkerClickListener { marker, mapView ->
                     val clickedPoi = marker.relatedObject as? Poi
                     if (clickedPoi != null) {
-                        // Navigate to Notes tab and open this note
-                        val bundle = Bundle().apply {
-                            putString("openPoiId", clickedPoi.id)
-                            putString("openPoiTitle", clickedPoi.name)
-                            putString("openPoiDescription", clickedPoi.notes ?: clickedPoi.description)
-                        }
-                        try {
-                            findNavController().navigate(R.id.action_map_to_notes, bundle)
-                        } catch (e: Exception) {
-                            Timber.e(e, "Failed to navigate to notes")
-                        }
+                        // Set pending note and switch to Notes tab via bottom nav
+                        NotesFragment.pendingNote = Triple(
+                            clickedPoi.id,
+                            clickedPoi.name,
+                            clickedPoi.notes ?: clickedPoi.description ?: ""
+                        )
+                        val activity = requireActivity() as? com.surveyme.presentation.MainActivity
+                        activity?.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
+                            R.id.bottomNavigation
+                        )?.selectedItemId = R.id.notesFragment
                     } else {
                         if (!marker.isInfoWindowOpen) {
                             marker.showInfoWindow()

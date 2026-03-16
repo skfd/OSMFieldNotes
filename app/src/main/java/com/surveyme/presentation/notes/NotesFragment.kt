@@ -26,7 +26,14 @@ import com.surveyme.databinding.FragmentNotesBinding
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+import com.surveyme.presentation.notes.NotesFragment.Companion.pendingNote
+
 class NotesFragment : Fragment() {
+
+    companion object {
+        /** Set by MapFragment to auto-open a note on tab switch. Triple(id, title, description) */
+        var pendingNote: Triple<String, String, String>? = null
+    }
 
     private var _binding: FragmentNotesBinding? = null
     private val binding get() = _binding!!
@@ -60,21 +67,15 @@ class NotesFragment : Fragment() {
     }
 
     private fun checkForPendingNote() {
-        val poiId = arguments?.getString("openPoiId") ?: ""
-        val poiTitle = arguments?.getString("openPoiTitle") ?: ""
-        val poiDescription = arguments?.getString("openPoiDescription") ?: ""
+        val note = pendingNote ?: return
+        pendingNote = null
         
-        if (poiId.isNotEmpty()) {
-            // Clear the arguments so re-opening the tab doesn't re-trigger
-            arguments?.putString("openPoiId", "")
-            
-            val dialog = NoteDetailsDialogFragment.newInstance(
-                noteId = poiId,
-                title = poiTitle,
-                description = poiDescription
-            )
-            dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
-        }
+        val dialog = NoteDetailsDialogFragment.newInstance(
+            noteId = note.first,
+            title = note.second,
+            description = note.third
+        )
+        dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
     }
 
     private fun setupRecyclerView() {

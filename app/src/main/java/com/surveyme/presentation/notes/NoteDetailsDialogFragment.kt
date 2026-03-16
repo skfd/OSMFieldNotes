@@ -29,6 +29,10 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
 
         binding.textTitle.text = title
         binding.textComments.text = description
+        
+        binding.buttonClose.setOnClickListener {
+            dismiss()
+        }
     }
 
     override fun onDestroyView() {

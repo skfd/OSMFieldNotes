@@ -15,11 +15,7 @@
         android:id="@+id/mapFragment"
         android:name="com.surveyme.presentation.map.MapFragment"
         android:label="@string/navigation_map"
-        tools:layout="@layout/fragment_map">
-        <action
-            android:id="@+id/action_map_to_notes"
-            app:destination="@id/notesFragment" />
-    </fragment>
+        tools:layout="@layout/fragment_map" />
 
     <fragment
         android:id="@+id/tracksFragment"
