@@ -27,7 +27,7 @@ $walkSpeed = 0.00003  # Walking speed in degrees
 Write-Host "Toronto GPS Walker - WASD Controls" -ForegroundColor Cyan
 Write-Host "=================================" -ForegroundColor Cyan
 Write-Host "W/S = North/South, A/D = West/East"
-Write-Host "Q = Quit, N = Next station, T = Teleport to station"
+Write-Host "Q = Quit, N = Next station, T = Teleport to station, I = Build & Install"
 Write-Host "Current location: Dundas Square"
 Write-Host ""
 
@@ -60,6 +60,11 @@ while ($true) {
                 $currentLon = $targetStation.lon
                 adb emu geo fix $currentLon $currentLat
                 Write-Host "`nTeleported to: $($targetStation.name) ($currentLat, $currentLon)" -ForegroundColor Magenta
+                continue
+            }
+            "I" {
+                Write-Host "`nRunning build and install..." -ForegroundColor Cyan
+                & .\build-install.ps1
                 continue
             }
             "Q" {

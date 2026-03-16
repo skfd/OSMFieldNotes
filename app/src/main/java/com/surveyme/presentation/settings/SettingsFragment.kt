@@ -21,6 +21,7 @@ import com.surveyme.presentation.debug.LogViewerDialog
 import timber.log.Timber
 import com.surveyme.data.PoiManager
 import com.surveyme.data.OverpassService
+import com.surveyme.data.OsmNotesService
 import com.surveyme.core.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -116,6 +117,10 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
             buttonFindFixme.setOnClickListener {
                 findFixme()
+            }
+
+            buttonFindOsmNotes.setOnClickListener {
+                findOsmNotes()
             }
         }
     }
@@ -214,6 +219,49 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                     Toast.makeText(context, "Error searching for FIXMEs: ${e.message}", Toast.LENGTH_LONG).show()
                 }
                 Timber.e(e, "Error searching for FIXMEs")
+            }
+        }
+    }
+
+    private fun findOsmNotes() {
+        binding.buttonFindOsmNotes.isEnabled = false
+        binding.buttonFindOsmNotes.alpha = 0.5f
+
+        val lastLocation = preferencesManager.getLastMapPosition()
+        val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
+        val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Searching for OSM Notes around last known map position...", Toast.LENGTH_SHORT).show()
+                }
+
+                val notesService = OsmNotesService()
+                val notes = notesService.fetchNotes(lat, lon, 2000)
+
+                if (notes.isNotEmpty()) {
+                    val repository = PoiManager.getRepository(requireContext())
+                    repository.insertPois(notes)
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "Found and saved ${notes.size} OSM Notes!", Toast.LENGTH_LONG).show()
+                        updatePoiCount()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "No OSM Notes found nearby.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Error searching for OSM Notes: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                Timber.e(e, "Error searching for OSM Notes")
+            } finally {
+                withContext(Dispatchers.Main) {
+                    binding.buttonFindOsmNotes.isEnabled = true
+                    binding.buttonFindOsmNotes.alpha = 1.0f
+                }
             }
         }
     }
