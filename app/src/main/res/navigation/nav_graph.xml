@@ -15,7 +15,11 @@
         android:id="@+id/mapFragment"
         android:name="com.surveyme.presentation.map.MapFragment"
         android:label="@string/navigation_map"
-        tools:layout="@layout/fragment_map" />
+        tools:layout="@layout/fragment_map">
+        <action
+            android:id="@+id/action_map_to_notes"
+            app:destination="@id/notesFragment" />
+    </fragment>
 
     <fragment
         android:id="@+id/tracksFragment"
@@ -33,6 +37,19 @@
         android:id="@+id/notesFragment"
         android:name="com.surveyme.presentation.notes.NotesFragment"
         android:label="@string/navigation_notes"
-        tools:layout="@layout/fragment_notes" />
+        tools:layout="@layout/fragment_notes">
+        <argument
+            android:name="openPoiId"
+            app:argType="string"
+            android:defaultValue="" />
+        <argument
+            android:name="openPoiTitle"
+            app:argType="string"
+            android:defaultValue="" />
+        <argument
+            android:name="openPoiDescription"
+            app:argType="string"
+            android:defaultValue="" />
+    </fragment>
 
 </navigation>

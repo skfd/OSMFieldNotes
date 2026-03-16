@@ -54,6 +54,27 @@ class NotesFragment : Fragment() {
         setupRecyclerView()
         observeViewModel()
         setupLocationUpdates()
+        
+        // Check if we should auto-open a specific note (from map marker click)
+        checkForPendingNote()
+    }
+
+    private fun checkForPendingNote() {
+        val poiId = arguments?.getString("openPoiId") ?: ""
+        val poiTitle = arguments?.getString("openPoiTitle") ?: ""
+        val poiDescription = arguments?.getString("openPoiDescription") ?: ""
+        
+        if (poiId.isNotEmpty()) {
+            // Clear the arguments so re-opening the tab doesn't re-trigger
+            arguments?.putString("openPoiId", "")
+            
+            val dialog = NoteDetailsDialogFragment.newInstance(
+                noteId = poiId,
+                title = poiTitle,
+                description = poiDescription
+            )
+            dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
+        }
     }
 
     private fun setupRecyclerView() {

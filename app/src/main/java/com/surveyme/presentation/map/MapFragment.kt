@@ -45,6 +45,7 @@ import com.surveyme.service.LocationTrackingService
 import com.surveyme.data.model.ActiveTrack
 import kotlinx.coroutines.Job
 import java.util.Locale
+import androidx.navigation.fragment.findNavController
 
 class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
@@ -461,14 +462,32 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
                 // Set click listener for info window
                 setOnMarkerClickListener { marker, mapView ->
-                    if (!marker.isInfoWindowOpen) {
-                        marker.showInfoWindow()
+                    val clickedPoi = marker.relatedObject as? Poi
+                    if (clickedPoi != null) {
+                        // Navigate to Notes tab and open this note
+                        val bundle = Bundle().apply {
+                            putString("openPoiId", clickedPoi.id)
+                            putString("openPoiTitle", clickedPoi.name)
+                            putString("openPoiDescription", clickedPoi.notes ?: clickedPoi.description)
+                        }
+                        try {
+                            findNavController().navigate(R.id.action_map_to_notes, bundle)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to navigate to notes")
+                        }
                     } else {
-                        marker.closeInfoWindow()
+                        if (!marker.isInfoWindowOpen) {
+                            marker.showInfoWindow()
+                        } else {
+                            marker.closeInfoWindow()
+                        }
+                        mapView.controller.animateTo(marker.position)
                     }
-                    mapView.controller.animateTo(marker.position)
                     true
                 }
+
+                // Store the POI as related object for retrieval on click
+                relatedObject = poi
             }
 
             binding.mapView.overlays.add(marker)
