@@ -5,6 +5,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.surveyme.R
 import com.surveyme.databinding.FragmentNoteDetailsBinding
 
 class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
@@ -32,6 +34,12 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         
         binding.buttonClose.setOnClickListener {
             dismiss()
+        }
+        
+        binding.buttonBackToMap.setOnClickListener {
+            dismiss()
+            activity?.findViewById<BottomNavigationView>(R.id.bottomNavigation)
+                ?.selectedItemId = R.id.mapFragment
         }
     }
 
