@@ -15,16 +15,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import com.surveyme.data.PoiManager
 import com.surveyme.databinding.FragmentNotesBinding
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import android.location.LocationListener
+import android.location.LocationManager
 
 import com.surveyme.presentation.notes.NotesFragment.Companion.pendingNote
 
@@ -43,8 +39,8 @@ class NotesFragment : Fragment() {
     }
 
     private lateinit var notesAdapter: NotesAdapter
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var locationCallback: LocationCallback? = null
+    private var locationManager: LocationManager? = null
+    private var locationListener: LocationListener? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -136,33 +132,46 @@ class NotesFragment : Fragment() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity())
+            locationManager = requireContext().getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager
             
             // Get last known location quickly
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
-                if (location != null) {
-                    viewModel.updateLocation(location)
-                }
+            val lastLocation = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            
+            if (lastLocation != null) {
+                viewModel.updateLocation(lastLocation)
             }
 
             // Start updates
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
-                .setMinUpdateIntervalMillis(5000)
-                .build()
-
-            locationCallback = object : LocationCallback() {
-                override fun onLocationResult(locationResult: LocationResult) {
-                    locationResult.lastLocation?.let { location ->
-                        viewModel.updateLocation(location)
-                    }
+            locationListener = object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    viewModel.updateLocation(location)
                 }
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {}
             }
 
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback!!,
-                Looper.getMainLooper()
-            )
+            try {
+                // Request updates with fairly frequent intervals since we are walking
+                locationManager?.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    5000L, // 5 seconds
+                    2f, // 2 meters
+                    locationListener!!,
+                    Looper.getMainLooper()
+                )
+                
+                // Also listen to network provider as fallback
+                locationManager?.requestLocationUpdates(
+                    LocationManager.NETWORK_PROVIDER,
+                    5000L,
+                    2f,
+                    locationListener!!,
+                    Looper.getMainLooper()
+                )
+            } catch (e: Exception) {
+                Timber.e(e, "Error requesting location updates")
+            }
         } else {
             Timber.d("Location permission not granted for NotesFragment")
         }
@@ -179,8 +188,8 @@ class NotesFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        if (::fusedLocationClient.isInitialized && locationCallback != null) {
-            fusedLocationClient.removeLocationUpdates(locationCallback!!)
+        locationListener?.let { listener ->
+            locationManager?.removeUpdates(listener)
         }
         _binding = null
     }
