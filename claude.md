@@ -11,75 +11,29 @@
 
 ## Project Overview
 
-Survey Me is a specialized Android mapping application designed specifically for dedicated OpenStreetMap (OSM) contributors who engage in long walks and field surveys. The application serves as a powerful field survey tool that combines real-time GPS tracking with Points of Interest (PoI) notifications to assist mappers in identifying and documenting geographic features that need to be added or updated in OpenStreetMap.
+FixMeAwesome (still labelled "Survey Me" in the app and package) is an Android app for OpenStreetMap contributors who like long walks. It pulls the things OSM itself says need a field visit, open OSM Notes and objects tagged `fixme`, from around the walker, pings them when they get close, and lets them act on the spot.
 
-## Executive Summary
+Decided 2026-09-22. The roadmap in `FEATURES_ROADMAP.md` is the source of truth for what to build next; `design/` predates this and describes the older, broader concept.
 
-### Purpose and Vision
+## The loop
 
-The primary goal of Survey Me is to enhance the efficiency and effectiveness of OSM field surveys by providing contributors with a mobile tool that actively assists them during their mapping expeditions. The app addresses several key challenges faced by OSM contributors:
+1. Track the user, in the background, until they explicitly stop.
+2. Fetch open notes and fixmes around them, refetching as they move.
+3. Ping when close. The ping opens the item.
+4. **Notes are handled in-app**: read the thread, comment, close, reopen, or create one, with the user's OSM account (OAuth 2.0, scope `write_notes`).
+5. **Fixmes are handed off** to an external editor (StreetComplete, Vespucci, osm.org). This app does not edit map data.
+6. Either can get evidence pinned to it (photo, text) for review at a desk later.
 
-1. **Field Survey Efficiency**: Mappers often walk or cycle through areas to identify missing or outdated map features. Survey Me helps them systematically cover areas and identify points that need attention.
+## Audience
 
-2. **Data Collection Organization**: By providing proximity-based notifications for Points of Interest, the app ensures that contributors don't miss important locations that need to be surveyed.
+Public release eventually (Play Store; F-Droid is an open decision because of Play Services location). Until then the maintainer is the only user.
 
-3. **Continuous Operation**: Unlike typical navigation apps that may be killed by the system, Survey Me is designed to run continuously during survey sessions, ensuring complete tracking data and reliable notifications.
+## Existing features kept but not developed
 
-### Target Audience
+- Track recording and the Tracks tab.
+- GPX waypoint import as a secondary POI source.
+- Interactive osmdroid map, user location, proximity detection, foreground service.
 
-The application is specifically designed for:
-
-- **Active OpenStreetMap Contributors**: Individuals who regularly participate in mapping activities and understand OSM tagging conventions
-- **Field Survey Teams**: Groups conducting organized mapping parties or systematic area surveys
-- **Local Knowledge Experts**: Community members who want to contribute their local knowledge to OSM
-- **Professional Surveyors**: Organizations conducting professional surveys for OSM improvement projects
-
-## Core Features
-
-### 1. Interactive Map Interface
-
-The application's main interface is centered around a fully interactive map that serves as the primary workspace for users. Key capabilities include:
-
-- **Standard Map Controls**: Full support for panning, zooming, and rotation gestures
-- **Multiple Map Layers**: Support for various base map styles (street, satellite, terrain)
-- **Real-time Rendering**: Smooth map rendering with efficient tile caching
-- **Offline Capability**: Ability to download and cache map tiles for offline use during surveys
-
-### 2. Live User Tracking
-
-Survey Me implements robust GPS tracking functionality that goes beyond typical location-aware applications:
-
-- **High-Precision GPS**: Utilizes Android's fused location provider for optimal accuracy
-- **Background Tracking**: Continues tracking even when the app is in the background
-- **Track Recording**: Records the complete path taken during survey sessions
-- **Battery Optimization**: Implements intelligent location update frequencies based on movement patterns
-
-### 3. Points of Interest Management
-
-The PoI system is central to the survey workflow:
-
-- **GPX File Import**: Loads PoI data from standard GPX format files
-- **Visual Markers**: Displays PoIs on the map with customizable icons and labels
-- **Categorization**: Supports different PoI categories with distinct visual representations
-- **Information Display**: Shows detailed information about each PoI when selected
-
-### 4. Proximity Notifications
-
-The notification system actively assists users during their surveys:
-
-- **Geofencing**: Creates virtual perimeters around each PoI
-- **Smart Notifications**: Sends alerts when users approach PoIs within configurable distances
-- **Notification Customization**: Users can configure notification preferences per PoI category
-- **Do Not Disturb**: Temporary suppression of notifications for already-surveyed points
-
-### 5. Persistent Operation
-
-Survey Me is engineered to maintain continuous operation:
-
-- **Foreground Service**: Runs as an Android foreground service to prevent system termination
-- **Wake Locks**: Maintains partial wake locks to ensure tracking continues
-- **Memory Priority**: Requests high memory priority to avoid being killed by low memory conditions
-- **Explicit Stop Control**: Only stops tracking when explicitly commanded by the user
 
 ## Technical Architecture
 
