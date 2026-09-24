@@ -138,6 +138,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
                 if (combined.isNotEmpty()) {
                     val repository = PoiManager.getRepository(requireContext())
+                    repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
                     repository.insertPois(combined)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Found and saved ${notes.size} Notes and ${fixmes.size} FIXMEs!", Toast.LENGTH_LONG).show()

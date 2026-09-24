@@ -11,6 +11,13 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 class OverpassService {
+    companion object {
+        /** Source tag the Notes tab filters on; must match PoiDao.getNotesAndFixmes. */
+        const val SOURCE_FIXME = "osm_fixme"
+        /** Source used by earlier builds for fixmes and bike share test data. Rows with it are purged. */
+        const val SOURCE_LEGACY = "overpass"
+    }
+
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -58,7 +65,8 @@ class OverpassService {
                     response = overpassResponse,
                     defaultName = "Docking Station",
                     prefixDesc = "Bicycle Rental Docking Station",
-                    category = PoiCategory.PUBLIC_TRANSPORT
+                    category = PoiCategory.PUBLIC_TRANSPORT,
+                    source = "overpass"
                 )
             }
         } catch (e: IOException) {
@@ -106,7 +114,8 @@ class OverpassService {
                     response = overpassResponse,
                     defaultName = "FIXME Issue",
                     prefixDesc = "Needs fixing:",
-                    category = PoiCategory.UNKNOWN
+                    category = PoiCategory.UNKNOWN,
+                    source = SOURCE_FIXME
                 )
             }
         } catch (e: IOException) {
@@ -122,7 +131,8 @@ class OverpassService {
         response: OverpassResponse,
         defaultName: String,
         prefixDesc: String,
-        category: PoiCategory
+        category: PoiCategory,
+        source: String
     ): List<Poi> {
         val pois = mutableListOf<Poi>()
 
@@ -156,7 +166,7 @@ class OverpassService {
                         latitude = lat,
                         longitude = lon,
                         category = category, // Fits best for bicycle rental
-                        source = "overpass",
+                        source = source,
                         tags = element.tags ?: emptyMap()
                     )
                     pois.add(poi)

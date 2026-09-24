@@ -31,14 +31,14 @@ Public release eventually (Play Store and F-Droid are the stated channels). Unti
 - Overpass queries: bike share stations (Toronto sample) and `fixme`-tagged nodes and ways within 2 km.
 - OSM Notes API: open notes within 2 km, parsed into POIs. Note id and status survive in the tags map; the comment thread is flattened into one text field.
 - Fetching happens on map load (notes only, around the last map position) and from a Settings button (notes plus fixmes). It does not follow the walker yet.
-- Notes tab: unified list of notes and fixmes sorted by distance, type tag, details dialog, and round-trip to the map marker. **Known bug:** fixmes are saved with source `overpass` but the tab's query only selects `osm_notes` and `osm_fixme`, so fixmes never appear in the list.
+- Notes tab: unified list of notes and fixmes sorted by distance, type tag, details dialog, and round-trip to the map marker. Fixmes are saved with source `osm_fixme` since v1.2.5; earlier builds used `overpass`, and those rows are purged on map load and on fetch.
 - PowerShell GPS simulators and build-and-install scripts.
 
 ## Next, in order
 
 Each item is one session-sized piece of work. Ticks go here; do not renumber.
 
-0. [ ] **Fixmes actually reach the list.** Save fixme POIs with source `osm_fixme` (or widen the query) and drop the old `overpass` rows. Small, and nothing after it is testable without it.
+0. [x] **Fixmes actually reach the list.** (done 2026-09-24, v1.2.5) Save fixme POIs with source `osm_fixme` (or widen the query) and drop the old `overpass` rows. Small, and nothing after it is testable without it.
 1. [ ] **Ping opens the item.** The proximity notification deep-links to the note or fixme details, not to MainActivity. Include a mute-this-one action. Item 8 later decides which notes are allowed to ping at all.
 2. [ ] **Fetch follows the walker.** Refetch notes and fixmes when the user has moved more than half the fetched radius from the last fetch centre, from the tracking service, not only from the map or Settings. Expire items outside the radius. Respect Overpass and osm.org rate limits.
 3. [ ] **First-class note model.** Store OSM note id, status, creation date and the comment thread as structured data instead of a flattened text field. Keep closed notes so a note you just closed can still be shown. Reserve a `labels` set and a nullable `surveyAfter` date on the note now, so item 8 needs no migration.

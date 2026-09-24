@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.5 (2026-09-24)
+
+**Roadmap item 0**: "continue yes" (fixmes actually reach the list)
+Fixme POIs are now saved with source `osm_fixme` so the Notes tab query finds them. Rows left by earlier builds under source `overpass` are deleted on map load and before each Settings fetch.
+
 ## Version 1.2.4 (2026-03-15)
 
 **Phase 8**: Database Setup (Room) - "implement"

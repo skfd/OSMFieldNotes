@@ -35,6 +35,7 @@ import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import com.surveyme.data.OsmNotesService
+import com.surveyme.data.OverpassService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -405,6 +406,9 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val repository = PoiManager.getRepository(requireContext())
+
+                // Drop fixme rows saved by earlier builds under the old source tag
+                repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
 
                 // Fetch current OSM Notes in the area
                 val lastLocation = preferencesManager?.getLastMapPosition()
