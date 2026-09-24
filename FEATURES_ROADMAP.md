@@ -79,7 +79,7 @@ Decided 2026-09-23 from all 305 open notes inside the City of Toronto (corpus an
 - `duplicate_cluster`: same author, same day, near-identical text, within about 150 m. One visit or one editing session resolves the set.
 - `discussed`, `anonymous`, `stale` (older than two years with no activity for one year), `low_signal` (three words or fewer, no topic, not an app report), `mine`, `note_to_self`.
 
-**Strict tags** are public hashtags written into note comments, so other mappers see them; keep them readable. Already in use in Toronto: `#surveyme` (5 notes) and `#resurvey` (1). Proposed vocabulary: `#surveyme` (needs a visit), a survey-after form with an ISO date (syntax to be decided), `#armchair` (telemapper), `#josm` (expert). Topic tags are optional and not needed for the loop.
+**Strict tags** are public hashtags written into note comments, so other mappers see them; keep them readable. Already in use in Toronto: `#surveyme` (5 notes) and `#resurvey` (1). Vocabulary (decided 2026-09-23): `#surveyme` (needs a visit now), `#surveyafter 2027-03-01` (ISO date; hidden until then, then behaves as `#surveyme`; month-only `2027-03` means the first of the month), `#armchair` (telemapper), `#josm` (expert). `#resurvey` is read as `#surveyme`. Topic tags are optional and not needed for the loop.
 
 **What the corpus showed** (2026-09-23, 305 open notes):
 

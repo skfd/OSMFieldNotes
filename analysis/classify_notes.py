@@ -51,7 +51,7 @@ STATE = {
     "has_source_link": r"https?://(?!osm\.org|www\.openstreetmap\.org|streetcomplete\.app|westnordost\.de)",
     "planned_change": r"coming soon|\bfuture\b|\bplanned\b|\bproposed\b|to be (demolished|installed|upgraded|built)|estimated completion|will (be|need|have)|slated|planned for|coming 20\d\d",
     "strict_tag_surveyme": r"#surveyme\b|#resurvey\b",
-    "strict_tag_survey_after": r"#survey-?after[ :]*\d{4}-\d{2}(-\d{2})?",
+    "strict_tag_survey_after": r"#surveyafter\s+\d{4}-\d{2}(-\d{2})?",  # decided 2026-09-23: "#surveyafter 2027-03-01"
     "note_to_self": r"note to self",
 }
 
