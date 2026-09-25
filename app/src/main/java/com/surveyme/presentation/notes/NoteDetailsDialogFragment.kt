@@ -371,8 +371,11 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         dismissed = poi.isMuted
         setStatus(if (dismissed) "FIXME · DISMISSED" else "FIXME", highlighted = !dismissed)
         binding.textDates.text = buildString {
-            append("Fetched ${dateFormat.format(poi.createdAt)}")
+            // Item 12: the element's last edit, when Overpass told us; the fetch time for older rows.
+            val edited = poi.lastEditedAt
+            if (edited != null) append("Edited ${dateFormat.format(edited)}") else append("Fetched ${dateFormat.format(poi.createdAt)}")
             poi.osmElementVersion?.let { append(" · v$it") }
+            poi.element?.let { append(" · ${it.type}") }
             if (poi.isVisited) append(" · visited")
         }
         val fixmeText = poi.tags["fixme"]?.takeIf { it.isNotBlank() }
@@ -382,7 +385,8 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         poi.tags.entries
             .sortedWith(compareBy({ it.key != "fixme" }, { it.key }))
             .forEach { (key, value) -> rows += DetailRow.Tag(key, value) }
-        binding.chipLabels.visibility = View.GONE
+        // The fixme's labels (item 12), all of them; the list row shows a few.
+        LabelChips.bind(binding.chipLabels, poi.labels)
         binding.actionRow.visibility = View.GONE
         return rows
     }

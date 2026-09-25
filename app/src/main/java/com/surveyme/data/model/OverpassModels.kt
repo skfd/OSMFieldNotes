@@ -16,6 +16,8 @@ data class Element(
     @SerializedName("center") val center: Center?,
     /** Present with `out meta`; null otherwise. */
     @SerializedName("version") val version: Long? = null,
+    /** Present with `out meta`: ISO 8601 UTC, "2024-05-01T12:34:56Z". */
+    @SerializedName("timestamp") val timestamp: String? = null,
     @SerializedName("tags") val tags: Map<String, String>?
 )
 

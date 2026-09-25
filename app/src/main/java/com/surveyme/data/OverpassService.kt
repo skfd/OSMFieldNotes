@@ -1,6 +1,7 @@
 package com.surveyme.data
 
 import com.google.gson.Gson
+import com.surveyme.core.FixmeClassifier
 import com.surveyme.core.OsmElementRef
 import com.surveyme.data.model.OverpassResponse
 import com.surveyme.data.model.Poi
@@ -9,6 +10,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import timber.log.Timber
 import java.io.IOException
+import java.text.ParseException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 class OverpassService {
@@ -26,6 +32,11 @@ class OverpassService {
         .build()
 
     private val gson = Gson()
+
+    // `out meta` timestamps are ISO 8601 in UTC; the zone must be set or the age filter is off by hours.
+    private val metaTimestampFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
 
     fun fetchDockingStations(lat: Double, lon: Double, radius: Int = 1000): List<Poi> {
         // Query for bicycle rental docking stations (nodes and ways)
@@ -80,7 +91,8 @@ class OverpassService {
     }
 
     /**
-     * Fixme-tagged nodes and ways within [radius]. Blocking; call from an IO dispatcher.
+     * Fixme-tagged nodes and ways within [radius]; relations are not asked for and, should
+     * one arrive, not kept (item 12). Blocking; call from an IO dispatcher.
      * Throws [FetchHttpException] on a non-2xx answer (Overpass says 429 or 504 when busy)
      * and [IOException] on network trouble, so the caller can back off.
      */
@@ -134,6 +146,8 @@ class OverpassService {
 
         response.elements.forEach { element ->
             try {
+                // Relations are not walkable targets; the fixme query does not ask for them either.
+                if (element.type != "node" && element.type != "way") return@forEach
                 // Determine coordinates: use lat/lon for nodes, center.lat/center.lon for ways
                 val lat = element.lat ?: element.center?.lat
                 val lon = element.lon ?: element.center?.lon
@@ -166,7 +180,9 @@ class OverpassService {
                         tags = element.tags ?: emptyMap(),
                         osmElementType = element.type.takeIf { it in OsmElementRef.TYPES },
                         osmElementId = element.id,
-                        osmElementVersion = element.version
+                        osmElementVersion = element.version,
+                        lastEditedAt = parseMetaTimestamp(element.timestamp),
+                        labels = if (source == SOURCE_FIXME) FixmeClassifier.classify(fixme) else emptySet()
                     )
                     pois.add(poi)
                 }
@@ -176,5 +192,16 @@ class OverpassService {
         }
 
         return pois
+    }
+
+    /** The element's `timestamp` from `out meta`, or null when absent or unparseable. */
+    private fun parseMetaTimestamp(value: String?): Date? {
+        if (value.isNullOrBlank()) return null
+        return try {
+            synchronized(metaTimestampFormat) { metaTimestampFormat.parse(value) }
+        } catch (e: ParseException) {
+            Timber.w("Unparseable Overpass timestamp: $value")
+            null
+        }
     }
 }

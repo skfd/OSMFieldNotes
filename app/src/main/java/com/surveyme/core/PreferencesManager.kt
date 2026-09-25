@@ -26,6 +26,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_CLASSIFIER_VERSION = "classifier_version"
         private const val KEY_NOTES_AUDIENCE_FILTER = "notes_audience_filter"
         private const val KEY_LAST_TRIAGE_AT = "last_triage_at"
+        private const val KEY_FIXME_MAX_AGE = "fixme_max_age"
 
         /** The Notes tab filter value that shows everything; the others are [NoteLabels.AUDIENCES]. */
         const val AUDIENCE_FILTER_ALL = "all"
@@ -56,6 +57,16 @@ class PreferencesManager(context: Context) {
         get() = prefs.getLong(KEY_LAST_TRIAGE_AT, NoteTriage.NEVER)
         set(value) {
             prefs.edit().putLong(KEY_LAST_TRIAGE_AT, value).apply()
+        }
+
+    /**
+     * How old a fixme may be (by the element's last edit) and still be listed or ping (item 12).
+     * Set from the Notes tab's overflow menu for now; item 13 puts it on the Settings screen.
+     */
+    var fixmeMaxAge: FixmeMaxAge
+        get() = FixmeMaxAge.fromPrefValue(prefs.getString(KEY_FIXME_MAX_AGE, null))
+        set(value) {
+            prefs.edit().putString(KEY_FIXME_MAX_AGE, value.prefValue).apply()
         }
 
     /** Where and when a source was last fetched successfully. */

@@ -9,4 +9,29 @@
         android:title="@string/navigation_triage"
         app:showAsAction="ifRoom|withText" />
 
+    <!-- Item 12: how old a fixme may be and still be listed or ping. Item 13 moves it to Settings. -->
+    <item
+        android:id="@+id/action_fixme_age"
+        android:title="Fixme age"
+        app:showAsAction="never">
+        <menu>
+            <group
+                android:id="@+id/group_fixme_age"
+                android:checkableBehavior="single">
+                <item
+                    android:id="@+id/action_fixme_age_any"
+                    android:title="Any age" />
+                <item
+                    android:id="@+id/action_fixme_age_1y"
+                    android:title="Up to 1 year" />
+                <item
+                    android:id="@+id/action_fixme_age_2y"
+                    android:title="Up to 2 years" />
+                <item
+                    android:id="@+id/action_fixme_age_5y"
+                    android:title="Up to 5 years" />
+            </group>
+        </menu>
+    </item>
+
 </menu>

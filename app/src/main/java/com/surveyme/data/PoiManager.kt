@@ -16,9 +16,15 @@ object PoiManager {
             val database = SurveyMeDatabase.getDatabase(appContext)
             // The classifier labels the logged-in user's own notes "mine"; read the name lazily
             // per store so a login during the session is seen without rebuilding anything.
-            repository = PoiRepository(database, appContext, ownDisplayName = {
-                (OsmAuthManager.get(appContext).state.value as? OsmAuthState.LoggedIn)?.displayName
-            })
+            val prefs = PreferencesManager(appContext)
+            repository = PoiRepository(
+                database, appContext,
+                ownDisplayName = {
+                    (OsmAuthManager.get(appContext).state.value as? OsmAuthState.LoggedIn)?.displayName
+                },
+                // Read per emission, so a change in the Notes tab reaches the ping gate without a restart.
+                fixmeMaxAge = { prefs.fixmeMaxAge }
+            )
         }
         return repository!!
     }

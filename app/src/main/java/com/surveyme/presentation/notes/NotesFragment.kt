@@ -20,7 +20,12 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.snackbar.Snackbar
+import com.surveyme.core.FixmeMaxAge
 import com.surveyme.core.NoteLabels
 import com.surveyme.core.PreferencesManager
 import com.surveyme.data.PoiManager
@@ -85,14 +90,36 @@ class NotesFragment : Fragment() {
         dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
     }
 
-    /** Item 9: a "Triage" action in the toolbar while this tab is showing. */
+    /** Menu ids of the fixme age choices (item 12), in [FixmeMaxAge] terms. */
+    private val ageMenuItems = mapOf(
+        R.id.action_fixme_age_any to FixmeMaxAge.ANY,
+        R.id.action_fixme_age_1y to FixmeMaxAge.ONE_YEAR,
+        R.id.action_fixme_age_2y to FixmeMaxAge.TWO_YEARS,
+        R.id.action_fixme_age_5y to FixmeMaxAge.FIVE_YEARS
+    )
+
+    /**
+     * Item 9: a "Triage" action in the toolbar while this tab is showing; item 12: a "Fixme age"
+     * submenu in the overflow, its radio state read from the ViewModel each time it opens.
+     */
     private fun setupMenu() {
         requireActivity().addMenuProvider(object : MenuProvider {
             override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
                 menuInflater.inflate(R.menu.menu_notes, menu)
             }
 
+            override fun onPrepareMenu(menu: Menu) {
+                val current = viewModel.fixmeMaxAge.value
+                ageMenuItems.forEach { (id, age) -> menu.findItem(id)?.isChecked = age == current }
+            }
+
             override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                ageMenuItems[menuItem.itemId]?.let { age ->
+                    viewModel.setFixmeMaxAge(age)
+                    menuItem.isChecked = true
+                    requireActivity().invalidateMenu()
+                    return true
+                }
                 if (menuItem.itemId != R.id.action_triage) return false
                 findNavController().navigate(R.id.triageFragment)
                 return true
@@ -107,6 +134,40 @@ class NotesFragment : Fragment() {
         binding.recyclerViewNotes.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = notesAdapter
+        }
+        ItemTouchHelper(SwipeToDismissFixme()).attachToRecyclerView(binding.recyclerViewNotes)
+    }
+
+    /**
+     * Item 12: swiping a fixme row either way dismisses it for now (or takes a dismissal back),
+     * with an undo in a snackbar. Notes do not swipe. The row is not removed, it drops to the
+     * bottom when the database emits, so the swiped-out view is snapped back at once.
+     */
+    private inner class SwipeToDismissFixme : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT) {
+        override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+            val position = viewHolder.adapterPosition
+            if (position == RecyclerView.NO_POSITION) return 0
+            val item = notesAdapter.currentList.getOrNull(position) ?: return 0
+            return if (item.poi.isFixme) super.getSwipeDirs(recyclerView, viewHolder) else 0
+        }
+
+        override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder) = false
+
+        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+            val position = viewHolder.adapterPosition
+            if (position == RecyclerView.NO_POSITION) return
+            val item = notesAdapter.currentList.getOrNull(position) ?: return
+            notesAdapter.notifyItemChanged(position)
+            val dismiss = !item.poi.isMuted
+            viewModel.setFixmeDismissed(item.poi.id, dismiss)
+            Snackbar.make(
+                binding.root,
+                if (dismiss) "Fixme dismissed for now: no pings, bottom of the list" else "Fixme restored: pings again",
+                Snackbar.LENGTH_LONG
+            )
+                .setAnchorView(activity?.findViewById<BottomNavigationView>(R.id.bottomNavigation))
+                .setAction("Undo") { viewModel.setFixmeDismissed(item.poi.id, !dismiss) }
+                .show()
         }
     }
 
@@ -144,7 +205,7 @@ class NotesFragment : Fragment() {
                             binding.recyclerViewNotes.visibility = View.GONE
                             binding.textEmpty.visibility = View.VISIBLE
                             binding.textEmpty.text = if (state.filtered) {
-                                "Nothing for this audience nearby.\nTry another chip."
+                                "Nothing matches the filters.\nTry another chip, or a longer fixme age in the menu."
                             } else {
                                 "No OSM Notes found.\nGo to Settings and tap 'Find OSM Notes' to fetch nearby notes."
                             }

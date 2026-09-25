@@ -8,6 +8,7 @@ import android.view.View
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.color.MaterialColors
+import com.surveyme.core.FixmeLabels
 import com.surveyme.core.NoteLabels
 
 /** One colour per audience, shared by the map markers and the label chips. */
@@ -29,13 +30,13 @@ object AudienceColors {
 }
 
 /**
- * Renders a note's labels as small read-only chips into a [ChipGroup], reusing the group's
- * children so a RecyclerView row does not inflate on every bind. Audience chips are filled in
- * their colour; the rest are outlined.
+ * Renders a note's or a fixme's labels as small read-only chips into a [ChipGroup], reusing
+ * the group's children so a RecyclerView row does not inflate on every bind. Audience chips
+ * are filled in their colour; the rest are outlined.
  */
 object LabelChips {
     fun bind(group: ChipGroup, labels: Set<String>, max: Int = Int.MAX_VALUE) {
-        val ordered = NoteLabels.ordered(labels).take(max)
+        val ordered = orderedLabels(labels).take(max)
         if (ordered.isEmpty()) {
             group.visibility = View.GONE
             return
@@ -45,7 +46,7 @@ object LabelChips {
         while (group.childCount < ordered.size) group.addView(newChip(group.context))
         ordered.forEachIndexed { index, label ->
             val chip = group.getChildAt(index) as Chip
-            chip.text = NoteLabels.displayName(label)
+            chip.text = FixmeLabels.displayName(label) ?: NoteLabels.displayName(label)
             if (label in NoteLabels.AUDIENCES) {
                 chip.chipBackgroundColor = ColorStateList.valueOf(AudienceColors.colorFor(label))
                 chip.setTextColor(Color.WHITE)
@@ -59,6 +60,11 @@ object LabelChips {
             }
         }
     }
+
+    /** Fixme labels in their own order when the set is one of theirs; note labels otherwise. */
+    private fun orderedLabels(labels: Set<String>): List<String> =
+        if (labels.isNotEmpty() && labels.all { it in FixmeLabels.DISPLAY_ORDER }) FixmeLabels.ordered(labels)
+        else NoteLabels.ordered(labels)
 
     private fun newChip(context: Context): Chip = Chip(context).apply {
         val density = context.resources.displayMetrics.density

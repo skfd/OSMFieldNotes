@@ -28,12 +28,24 @@ data class Poi(
     val osmElementType: String? = null,
     val osmElementId: Long? = null,
     /** The element version Overpass reported (`out meta`), so an editor can be told what we saw. */
-    val osmElementVersion: Long? = null
+    val osmElementVersion: Long? = null,
+    /** When the element was last edited (Overpass `timestamp`, item 12); null for notes, waypoints and pre-v9 rows. */
+    val lastEditedAt: Date? = null,
+    /** [com.surveyme.core.FixmeLabels] for a fixme (item 12); empty for everything else. */
+    val labels: Set<String> = emptySet()
 ) {
     /** The element this POI stands for, from the columns or, for rows older than v7, the id string. */
     val element: com.surveyme.core.OsmElementRef?
         get() = com.surveyme.core.OsmElementRef.of(osmElementType, osmElementId)
             ?: com.surveyme.core.OsmElementRef.fromPoiId(id)
+
+    val isFixme: Boolean get() = source == "osm_fixme"
+
+    /** A fixme the user dismissed for now (item 10): it stays listed, dimmed, and does not ping. */
+    val isDismissedFixme: Boolean get() = isFixme && isMuted
+
+    /** A fixme on a relation; too diffuse to walk to, so neither listed nor pinged (item 12). */
+    val isOnRelation: Boolean get() = element?.type == "relation"
 
     fun distanceTo(lat: Double, lon: Double): Float {
         val results = FloatArray(1)

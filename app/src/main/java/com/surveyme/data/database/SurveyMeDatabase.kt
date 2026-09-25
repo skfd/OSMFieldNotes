@@ -14,7 +14,7 @@ import com.surveyme.data.model.Poi
 
 @Database(
     entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class, Evidence::class],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -121,6 +121,19 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v9: a fixme's last edit date and its labels (item 12). Two ALTER TABLEs; `labels` gets
+         * the empty JSON set as its default so the ADD COLUMN succeeds on a populated table (the
+         * entity itself declares no default, same as `isMuted` in v3). Old rows keep a null date
+         * until the next Overpass fetch and get labels from the first-launch reclassify pass.
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `lastEditedAt` INTEGER")
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `labels` TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -128,7 +141,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                 INSTANCE = instance
                 instance

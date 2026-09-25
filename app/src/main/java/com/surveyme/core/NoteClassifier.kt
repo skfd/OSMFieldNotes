@@ -125,8 +125,11 @@ data class NoteClassification(val labels: Set<String>, val surveyAfter: Date?)
 class NoteClassifier {
 
     companion object {
-        /** Stored in prefs; a higher value here triggers one reclassification of all notes. */
-        const val VERSION = 1
+        /**
+         * Stored in prefs; a higher value here triggers one reclassification of all notes and,
+         * since item 12, of all fixmes ([FixmeClassifier]). 2: fixme labels introduced.
+         */
+        const val VERSION = 2
 
         /**
          * Two notes of one author, one day and near-identical text closer than this are a

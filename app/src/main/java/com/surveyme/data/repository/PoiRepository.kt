@@ -3,11 +3,14 @@ package com.surveyme.data.repository
 import android.content.Context
 import androidx.room.withTransaction
 import com.surveyme.core.Constants
+import com.surveyme.core.FixmeClassifier
+import com.surveyme.core.FixmeMaxAge
 import com.surveyme.core.NoteClassifier
 import com.surveyme.core.NoteLabels
 import com.surveyme.core.NotePingPolicy
 import com.surveyme.data.FetchedNote
 import com.surveyme.data.OsmNotesService
+import com.surveyme.data.OverpassService
 import com.surveyme.data.database.NoteActionDao
 import com.surveyme.data.database.PoiWithNote
 import com.surveyme.data.database.SurveyMeDatabase
@@ -32,12 +35,14 @@ import java.util.Date
 /**
  * [ownDisplayName] answers the logged-in OSM user's name (null when logged out) so the
  * classifier can label the user's own notes; it is a function because login changes at run time.
+ * [fixmeMaxAge] answers the fixme age setting the ping gate applies (item 12), read the same way.
  */
 class PoiRepository(
     private val database: SurveyMeDatabase,
     private val context: Context,
     private val ownDisplayName: () -> String? = { null },
-    private val classifier: NoteClassifier = NoteClassifier()
+    private val classifier: NoteClassifier = NoteClassifier(),
+    private val fixmeMaxAge: () -> FixmeMaxAge = { FixmeMaxAge.ANY }
 ) {
     private val poiDao = database.poiDao()
     private val noteDao = database.noteDao()
@@ -60,14 +65,17 @@ class PoiRepository(
     fun getAllActivePoisWithNote(): Flow<List<PoiWithNote>> = poiDao.getAllActivePoisWithNote()
 
     /**
-     * What proximity may ping: fixmes and waypoints as before, and notes that pass
+     * What proximity may ping: waypoints as before, fixmes that are not dismissed, not on a
+     * relation and within the fixme age setting (item 12), and notes that pass
      * [NotePingPolicy] (open, surveyor-class, not stale, past their `#surveyafter` date). The
-     * date is checked when the flow emits, so a note crossing its date is picked up on the next
-     * database change (a refetch while tracking, at the latest 15 min).
+     * clock and the age setting are read when the flow emits, so a note crossing its date or a
+     * changed setting is picked up on the next database change (a refetch while tracking, at
+     * the latest 15 min).
      */
     fun getPingablePois(): Flow<List<Poi>> = poiDao.getPingableCandidates().map { rows ->
         val now = Date()
-        rows.filter { NotePingPolicy.mayPing(it.note, now) }.map { it.poi }
+        val maxAge = fixmeMaxAge()
+        rows.filter { NotePingPolicy.mayPing(it.poi, it.note, now, maxAge) }.map { it.poi }
     }
 
     suspend fun getNoteByPoiId(poiId: String): OsmNote? = noteDao.getByPoiId(poiId)
@@ -163,13 +171,15 @@ class PoiRepository(
     }
 
     /**
-     * Recompute labels and survey-after for every stored note. Run once after an upgrade that
-     * changed the rules ([NoteClassifier.VERSION]) and after a login or logout, since the
-     * [NoteLabels.MINE] label depends on who is logged in. Returns how many notes were relabelled.
+     * Recompute labels and survey-after for every stored note, and the labels of every stored
+     * fixme (item 12). Run once after an upgrade that changed the rules ([NoteClassifier.VERSION])
+     * and after a login or logout, since the [NoteLabels.MINE] label depends on who is logged
+     * in. Returns how many notes and fixmes were relabelled.
      */
     suspend fun reclassifyAll(): Int = database.withTransaction {
+        val fixmes = reclassifyFixmes()
         val notes = noteDao.getAll()
-        if (notes.isEmpty()) return@withTransaction 0
+        if (notes.isEmpty()) return@withTransaction fixmes
         val pois = notes.map { it.poiId }
             .chunked(500)
             .flatMap { poiDao.getPoisByIds(it) }
@@ -177,7 +187,20 @@ class PoiRepository(
         val pairs = notes.mapNotNull { note -> pois[note.poiId]?.let { note to it } }
         noteDao.insertAll(classify(pairs))
         Timber.i("Reclassified ${pairs.size} notes")
-        pairs.size
+        pairs.size + fixmes
+    }
+
+    /** Fixme labels come from the `fixme` tag alone; rewrite only the rows whose labels changed. */
+    private suspend fun reclassifyFixmes(): Int {
+        val changed = poiDao.getPoisBySource(OverpassService.SOURCE_FIXME).mapNotNull { poi ->
+            val labels = FixmeClassifier.classify(poi.tags["fixme"])
+            if (labels == poi.labels) null else poi.copy(labels = labels)
+        }
+        if (changed.isNotEmpty()) {
+            changed.chunked(500).forEach { poiDao.insertPois(it) }
+            Timber.i("Relabelled ${changed.size} fixmes")
+        }
+        return changed.size
     }
 
     /**

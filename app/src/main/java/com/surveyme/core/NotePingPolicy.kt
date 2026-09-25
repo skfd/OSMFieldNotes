@@ -1,6 +1,7 @@
 package com.surveyme.core
 
 import com.surveyme.data.model.OsmNote
+import com.surveyme.data.model.Poi
 import java.util.Date
 
 /**
@@ -23,5 +24,18 @@ object NotePingPolicy {
         val after = note.surveyAfter
         if (after != null && after.after(now)) return false
         return true
+    }
+
+    /**
+     * The full gate for one stored row (item 12): a note follows [mayPing] on its note row; a
+     * fixme pings unless it was dismissed ([Poi.isMuted]), sits on a relation, or was last
+     * edited longer ago than [fixmeMaxAge] allows (an unknown date passes); anything else
+     * (an imported waypoint) pings as before.
+     */
+    fun mayPing(poi: Poi, note: OsmNote?, now: Date = Date(), fixmeMaxAge: FixmeMaxAge = FixmeMaxAge.ANY): Boolean {
+        if (note != null) return mayPing(note, now)
+        if (!poi.isFixme) return true
+        if (poi.isMuted || poi.isOnRelation) return false
+        return fixmeMaxAge.allows(poi.lastEditedAt, now)
     }
 }

@@ -2,6 +2,7 @@ package com.surveyme.core
 
 import com.surveyme.data.model.NoteStatus
 import com.surveyme.data.model.OsmNote
+import com.surveyme.data.model.Poi
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,5 +49,43 @@ class NotePingPolicyTest {
     @Test
     fun `future_dated is a hint only and does not hide`() {
         assertTrue(NotePingPolicy.mayPing(note(labels = setOf(NoteLabels.SURVEYOR, NoteLabels.FUTURE_DATED)), now))
+    }
+
+    private fun fixme(
+        muted: Boolean = false,
+        type: String? = "node",
+        lastEditedAt: Date? = Date(now.time - 30L * 24 * 3600 * 1000)
+    ) = Poi(
+        id = "overpass_${type}_1", name = "FIXME Issue", latitude = 0.0, longitude = 0.0, source = "osm_fixme",
+        isMuted = muted, osmElementType = type, osmElementId = 1, lastEditedAt = lastEditedAt
+    )
+
+    @Test
+    fun `fixme pings unless dismissed, on a relation, or too old for the setting`() {
+        assertTrue(NotePingPolicy.mayPing(fixme(), null, now, FixmeMaxAge.ONE_YEAR))
+        assertFalse(NotePingPolicy.mayPing(fixme(muted = true), null, now, FixmeMaxAge.ANY))
+        assertFalse(NotePingPolicy.mayPing(fixme(type = "relation"), null, now, FixmeMaxAge.ANY))
+        val old = fixme(lastEditedAt = Date(now.time - 3L * 365 * 24 * 3600 * 1000))
+        assertFalse(NotePingPolicy.mayPing(old, null, now, FixmeMaxAge.TWO_YEARS))
+        assertTrue(NotePingPolicy.mayPing(old, null, now, FixmeMaxAge.FIVE_YEARS))
+        assertTrue(NotePingPolicy.mayPing(old, null, now, FixmeMaxAge.ANY))
+        // A pre-v9 row has no date yet; it passes until the next fetch fills one in.
+        assertTrue(NotePingPolicy.mayPing(fixme(lastEditedAt = null), null, now, FixmeMaxAge.ONE_YEAR))
+    }
+
+    @Test
+    fun `relation detected from the id string of a pre-v7 row`() {
+        val legacy = Poi(id = "overpass_relation_9", name = "FIXME Issue", latitude = 0.0, longitude = 0.0, source = "osm_fixme")
+        assertTrue(legacy.isOnRelation)
+        assertFalse(NotePingPolicy.mayPing(legacy, null, now))
+    }
+
+    @Test
+    fun `waypoints and notes go through the poi overload unchanged`() {
+        val waypoint = Poi(id = "w", name = "Waypoint", latitude = 0.0, longitude = 0.0, source = "gpx_import")
+        assertTrue(NotePingPolicy.mayPing(waypoint, null, now, FixmeMaxAge.ONE_YEAR))
+        val notePoi = Poi(id = OsmNote.poiIdFor(1), name = "Note", latitude = 0.0, longitude = 0.0, source = "osm_notes")
+        assertTrue(NotePingPolicy.mayPing(notePoi, note(), now))
+        assertFalse(NotePingPolicy.mayPing(notePoi, note(status = NoteStatus.CLOSED), now))
     }
 }

@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.surveyme.core.FixmeSummary
 import com.surveyme.databinding.ItemNoteBinding
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -46,25 +47,42 @@ class NotesAdapter(
         fun bind(item: NoteItem) {
             binding.apply {
                 val note = item.note
-                textNoteId.text = item.poi.name
-                // Structured thread when we have it; the flattened POI text for fixmes and pre-v4 rows.
-                textDescription.text = note?.openingText?.takeIf { it.isNotBlank() } ?: item.poi.description
-                textDate.text = buildString {
-                    append("Created: ${dateFormat.format(note?.createdAt ?: item.poi.createdAt)}")
-                    if (note != null) {
-                        if (!note.isOpen) {
-                            append(" · ${note.status.apiValue}")
-                            note.closedAt?.let { append(" ${dateFormat.format(it)}") }
+                val poi = item.poi
+                if (poi.isFixme) {
+                    // Item 12: the fixme text is the row; the element's main tags say what it is on.
+                    textNoteId.text = FixmeSummary.primaryLine(poi.tags)
+                    val secondary = FixmeSummary.secondaryLine(poi.tags, poi.element?.type)
+                    textDescription.text = secondary
+                    textDescription.visibility = if (secondary.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
+                    textDate.text = buildString {
+                        val edited = poi.lastEditedAt
+                        if (edited != null) append("Edited: ${dateFormat.format(edited)}")
+                        else append("Fetched: ${dateFormat.format(poi.createdAt)}")
+                        poi.osmElementVersion?.let { append(" · v$it") }
+                        if (poi.isVisited) append(" · visited")
+                    }
+                } else {
+                    textNoteId.text = poi.name
+                    // Structured thread when we have it; the flattened POI text for pre-v4 rows.
+                    textDescription.text = note?.openingText?.takeIf { it.isNotBlank() } ?: poi.description
+                    textDescription.visibility = android.view.View.VISIBLE
+                    textDate.text = buildString {
+                        append("Created: ${dateFormat.format(note?.createdAt ?: poi.createdAt)}")
+                        if (note != null) {
+                            if (!note.isOpen) {
+                                append(" · ${note.status.apiValue}")
+                                note.closedAt?.let { append(" ${dateFormat.format(it)}") }
+                            }
+                            val replies = note.comments.size - 1
+                            if (replies > 0) append(" · $replies ${if (replies == 1) "reply" else "replies"}")
                         }
-                        val replies = note.comments.size - 1
-                        if (replies > 0) append(" · $replies ${if (replies == 1) "reply" else "replies"}")
                     }
                 }
 
                 // A fixme dismissed for now (item 10) stays in the list, dimmed, and does not ping.
-                val dismissed = item.poi.source == "osm_fixme" && item.poi.isMuted
+                val dismissed = poi.isDismissedFixme
                 root.alpha = if (dismissed) 0.55f else 1f
-                if (item.poi.source == "osm_fixme") {
+                if (poi.isFixme) {
                     textType.text = if (dismissed) "FIXME · DISMISSED" else "FIXME"
                     textType.visibility = android.view.View.VISIBLE
                 } else if (item.poi.source == "osm_notes") {
@@ -80,7 +98,8 @@ class NotesAdapter(
                 }
 
                 // A few labels per row (audience first); the details sheet shows them all.
-                LabelChips.bind(chipLabels, note?.labels ?: emptySet(), max = MAX_ROW_CHIPS)
+                // A fixme carries its own labels on the POI (item 12).
+                LabelChips.bind(chipLabels, note?.labels ?: poi.labels, max = MAX_ROW_CHIPS)
 
                 textDistance.text = item.distance?.let { formatDistance(it) } ?: ""
             }

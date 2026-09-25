@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.17 (2026-09-25)
+
+**Roadmap item 12**: "build it as far as you can" (fixme list quality)
+A fixme row in the Notes tab now leads with the `fixme` text and carries the element's main tags underneath (name, then the first of amenity / shop / highway / building / leisure / natural / tourism / office / craft / man_made / railway / public_transport, plus a node/way marker) and "Edited <date> · vN" from Overpass `out meta` (`lastEditedAt`, DB v9 with a real ALTER TABLE migration, schema 9.json exported). `FixmeClassifier` (`core/FixmeRules.kt`, pure, unit-tested on a dozen phrases) labels the text `continue`, `resurvey`, `check_name`, `check_position` and `check_tags` into a new `labels` column, shown as chips in the row and the details sheet; existing rows get labels from the first-launch reclassify pass (`NoteClassifier.VERSION` 2) and their edit date on the next Overpass fetch. Fixmes on relations are dropped (the query never asked for them; the parser and the list both drop one anyway), a "Fixme age" submenu in the Notes tab overflow (Any / 1 / 2 / 5 years, `PreferencesManager.fixmeMaxAge` for item 13) hides older ones from the list and the ping gate (`NotePingPolicy.mayPing(poi, note, now, maxAge)`, applied on the next database emission), swiping a fixme row dismisses it for now with an Undo snackbar (the same `isMuted` flag as the details chip), and dismissed fixmes sink to the bottom of the list. Nothing here has run on a device yet.
+
 ## Version 1.2.16 (2026-09-25)
 
 **Roadmap item 11**: "build it as far as you can" (evidence capture)
