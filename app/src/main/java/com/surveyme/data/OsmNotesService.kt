@@ -1,5 +1,6 @@
 package com.surveyme.data
 
+import com.surveyme.core.Constants
 import com.surveyme.data.model.NoteAction
 import com.surveyme.data.model.NoteComment
 import com.surveyme.data.model.NoteStatus
@@ -62,7 +63,10 @@ class OsmNotesService {
         radiusMeters: Int = 1000
     ): NotesPage = withContext(Dispatchers.IO) {
         val bbox = calculateBoundingBox(lat, lon, radiusMeters)
-        val url = "https://api.openstreetmap.org/api/0.6/notes.json?bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}&limit=$PAGE_LIMIT"
+        // closed=N: also return notes closed within N days. Retention in the repository assumes
+        // this window, so it is spelled out rather than left to the API default (also 7).
+        val closedDays = Constants.NOTE_CLOSED_RETENTION_MILLIS / (24 * 60 * 60 * 1000L)
+        val url = "https://api.openstreetmap.org/api/0.6/notes.json?bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}&limit=$PAGE_LIMIT&closed=$closedDays"
 
         Timber.d("Fetching OSM notes from API: $url")
         val request = Request.Builder()

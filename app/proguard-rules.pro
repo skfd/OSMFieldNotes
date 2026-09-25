@@ -33,3 +33,5 @@
 # Navigation Component
 -keepnames class * extends android.os.Parcelable
 -keepnames class * extends java.io.Serializable
+# Note comments and labels are stored as Gson JSON in Room; field and enum names must survive R8.
+-keep class com.surveyme.data.model.** { *; }
