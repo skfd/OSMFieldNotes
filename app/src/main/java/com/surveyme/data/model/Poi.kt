@@ -16,6 +16,7 @@ data class Poi(
     val category: PoiCategory = PoiCategory.UNKNOWN,
     val notificationRadius: Int = 50, // meters
     val isVisited: Boolean = false,
+    val isMuted: Boolean = false, // user asked never to be pinged for this one
     val lastNotificationTime: Long? = null,
     val createdAt: Date = Date(),
     val source: String = "manual", // manual, gpx, osm

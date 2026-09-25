@@ -41,7 +41,31 @@ class PoiRepository(
 
     suspend fun insertPoi(poi: Poi) = poiDao.insertPoi(poi)
 
-    suspend fun insertPois(pois: List<Poi>) = poiDao.insertPois(pois)
+    /**
+     * Insert or replace, keeping the per-user flags (muted, visited, last ping) of rows
+     * that already exist. Refetching notes must not un-mute a note.
+     */
+    suspend fun insertPois(pois: List<Poi>) {
+        if (pois.isEmpty()) return
+        val existing = pois.map { it.id }
+            .chunked(500)
+            .flatMap { poiDao.getPoisByIds(it) }
+            .associateBy { it.id }
+        val merged = pois.map { poi ->
+            val old = existing[poi.id] ?: return@map poi
+            poi.copy(
+                isMuted = old.isMuted,
+                isVisited = old.isVisited,
+                lastNotificationTime = old.lastNotificationTime
+            )
+        }
+        poiDao.insertPois(merged)
+    }
+
+    suspend fun setMuted(poiId: String, muted: Boolean) {
+        poiDao.setMuted(poiId, muted)
+        Timber.d("POI muted=$muted: $poiId")
+    }
 
     suspend fun updatePoi(poi: Poi) = poiDao.updatePoi(poi)
 

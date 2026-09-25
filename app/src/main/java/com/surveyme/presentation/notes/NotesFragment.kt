@@ -62,7 +62,8 @@ class NotesFragment : Fragment() {
         checkForPendingNote()
     }
 
-    private fun checkForPendingNote() {
+    /** Opens the note left in [pendingNote], if any. Called on view creation and by MainActivity on a deep link. */
+    fun checkForPendingNote() {
         val note = pendingNote ?: return
         pendingNote = null
         

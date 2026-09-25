@@ -19,6 +19,9 @@ interface PoiDao {
     @Query("SELECT * FROM pois WHERE id = :id LIMIT 1")
     suspend fun getPoiById(id: String): Poi?
 
+    @Query("SELECT * FROM pois WHERE id IN (:ids)")
+    suspend fun getPoisByIds(ids: List<String>): List<Poi>
+
     @Query("SELECT * FROM pois WHERE isVisited = 0 AND isActive = 1")
     fun getUnvisitedPois(): Flow<List<Poi>>
 
@@ -47,6 +50,9 @@ interface PoiDao {
 
     @Query("UPDATE pois SET lastNotificationTime = :timestamp WHERE id = :poiId")
     suspend fun updateLastNotificationTime(poiId: String, timestamp: Long)
+
+    @Query("UPDATE pois SET isMuted = :muted WHERE id = :poiId")
+    suspend fun setMuted(poiId: String, muted: Boolean)
 
     @Delete
     suspend fun deletePoi(poi: Poi)

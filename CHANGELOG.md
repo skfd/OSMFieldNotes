@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.6 (2026-09-25)
+
+**Roadmap item 1**: "go" (ping opens the item)
+The proximity notification now deep-links to the note or fixme details in the Notes tab and carries a "Mute this one" action. Muted is a new `isMuted` column (DB v3); refetching notes keeps muted, visited and last-ping flags instead of wiping them. Notification title says "Note nearby" or "Fixme nearby" with the distance and first line of text.
+
 ## Version 1.2.5 (2026-09-24)
 
 **Roadmap item 0**: "continue yes" (fixmes actually reach the list)

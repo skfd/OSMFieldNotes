@@ -27,7 +27,7 @@ Public release eventually (Play Store and F-Droid are the stated channels). Unti
 - Track recording: polyline on the map, distance and duration, saved to Room, listed and deletable in the Tracks tab. Naming, GPX export and colour coding were never done.
 - Room database with POI and track tables, migrations and a backup utility.
 - POI model with categories, GPX waypoint import, category icons on the map.
-- Proximity detection with per-POI cooldown, visited flag, and a high-priority notification that names the POI and its distance. Tapping it opens the app, not the item.
+- Proximity detection with per-POI cooldown, visited flag, and a high-priority notification titled "Note nearby" or "Fixme nearby" with the first line of the text and the distance. Tapping it opens the item in the Notes tab; a "Mute this one" action sets a persisted `isMuted` flag that refetches keep.
 - Overpass queries: bike share stations (Toronto sample) and `fixme`-tagged nodes and ways within 2 km.
 - OSM Notes API: open notes within 2 km, parsed into POIs. Note id and status survive in the tags map; the comment thread is flattened into one text field.
 - Fetching happens on map load (notes only, around the last map position) and from a Settings button (notes plus fixmes). It does not follow the walker yet.
@@ -39,7 +39,7 @@ Public release eventually (Play Store and F-Droid are the stated channels). Unti
 Each item is one session-sized piece of work. Ticks go here; do not renumber.
 
 0. [x] **Fixmes actually reach the list.** (done 2026-09-24, v1.2.5) Save fixme POIs with source `osm_fixme` (or widen the query) and drop the old `overpass` rows. Small, and nothing after it is testable without it.
-1. [ ] **Ping opens the item.** The proximity notification deep-links to the note or fixme details, not to MainActivity. Include a mute-this-one action. Item 8 later decides which notes are allowed to ping at all.
+1. [x] **Ping opens the item.** (done 2026-09-25, v1.2.6; mute is a persisted `isMuted` column, unmute UI comes with item 13) The proximity notification deep-links to the note or fixme details, not to MainActivity. Include a mute-this-one action. Item 8 later decides which notes are allowed to ping at all.
 2. [ ] **Fetch follows the walker.** Refetch notes and fixmes when the user has moved more than half the fetched radius from the last fetch centre, from the tracking service, not only from the map or Settings. Expire items outside the radius. Respect Overpass and osm.org rate limits.
 3. [ ] **First-class note model.** Store OSM note id, status, creation date and the comment thread as structured data instead of a flattened text field. Keep closed notes so a note you just closed can still be shown. Reserve a `labels` set and a nullable `surveyAfter` date on the note now, so item 8 needs no migration.
 4. [ ] **Note details rework.** Thread rendered as comments with author and date, status shown, link to osm.org.

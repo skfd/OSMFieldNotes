@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
@@ -42,6 +43,9 @@ class LocationTrackingService : Service() {
         const val POI_NOTIFICATION_CHANNEL_ID = "poi_proximity_channel"
         const val ACTION_START_TRACKING = "com.surveyme.START_TRACKING"
         const val ACTION_STOP_TRACKING = "com.surveyme.STOP_TRACKING"
+        const val ACTION_MUTE_POI = "com.surveyme.MUTE_POI"
+        const val EXTRA_POI_ID = "com.surveyme.POI_ID"
+        private const val POI_NOTIFICATION_ID_OFFSET = 2000
 
         private const val LOCATION_INTERVAL = 5000L // 5 seconds
         private const val FASTEST_LOCATION_INTERVAL = 2000L // 2 seconds
@@ -118,7 +122,7 @@ class LocationTrackingService : Service() {
         // Create a snapshot of the POIs to avoid ConcurrentModificationException
         // if the list is updated on a background thread while iterating
         val currentPois = synchronized(poisCache) {
-            poisCache.toList()
+            poisCache.filter { !it.isMuted }
         }
 
         Timber.d("POI cache size: ${currentPois.size}")
@@ -219,6 +223,7 @@ class LocationTrackingService : Service() {
         when (intent?.action) {
             ACTION_START_TRACKING -> startLocationTracking()
             ACTION_STOP_TRACKING -> stopLocationTracking()
+            ACTION_MUTE_POI -> intent.getStringExtra(EXTRA_POI_ID)?.let { mutePoi(it) }
         }
         return START_STICKY
     }
@@ -329,25 +334,68 @@ class LocationTrackingService : Service() {
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
 
+    private fun mutePoi(poiId: String) {
+        Timber.d("Muting POI $poiId from notification action")
+        notificationManager.cancel(poiNotificationId(poiId))
+        serviceScope.launch {
+            try {
+                PoiManager.getRepository(this@LocationTrackingService).setMuted(poiId, true)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to mute POI $poiId")
+            }
+        }
+    }
+
+    private fun poiNotificationId(poiId: String) = poiId.hashCode() + POI_NOTIFICATION_ID_OFFSET
+
     private fun showPoiNotification(poi: Poi, distance: Float) {
-        val pendingIntent = PendingIntent.getActivity(
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = Uri.parse("surveyme://poi/${poi.id}") // makes each PendingIntent distinct
+            putExtra(MainActivity.EXTRA_OPEN_POI_ID, poi.id)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val openPending = PendingIntent.getActivity(
             this,
             poi.id.hashCode(),
-            Intent(this, MainActivity::class.java),
+            openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val muteIntent = Intent(this, LocationTrackingService::class.java).apply {
+            action = ACTION_MUTE_POI
+            data = Uri.parse("surveyme://mute/${poi.id}")
+            putExtra(EXTRA_POI_ID, poi.id)
+        }
+        val mutePending = PendingIntent.getService(
+            this,
+            poi.id.hashCode() + 1,
+            muteIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = when (poi.source) {
+            "osm_notes" -> "Note nearby"
+            "osm_fixme" -> "Fixme nearby"
+            else -> "Nearby: ${poi.name}"
+        }
+        val body = (poi.notes ?: poi.description ?: poi.name).trim()
+        val firstLine = body.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: poi.name
+        val meters = distance.toInt()
+
         val notification = NotificationCompat.Builder(this, POI_NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("POI Nearby: ${poi.name}")
-            .setContentText("${poi.description} - ${distance.toInt()}m away")
+            .setContentTitle("$title, ${meters}m")
+            .setContentText(firstLine)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("${meters}m away\n$body"))
             .setSmallIcon(android.R.drawable.ic_dialog_map)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(openPending)
+            .addAction(0, "Mute this one", mutePending)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVibrate(longArrayOf(0, 250, 250, 250))
             .build()
 
-        notificationManager.notify(poi.id.hashCode() + 2000, notification)
+        notificationManager.notify(poiNotificationId(poi.id), notification)
     }
 
     override fun onDestroy() {

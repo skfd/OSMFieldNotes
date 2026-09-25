@@ -11,7 +11,7 @@ import com.surveyme.data.model.Poi
 
 @Database(
     entities = [Poi::class, TrackEntity::class, LocationPointEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -36,6 +36,12 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `isMuted` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -43,7 +49,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                 INSTANCE = instance
                 instance
