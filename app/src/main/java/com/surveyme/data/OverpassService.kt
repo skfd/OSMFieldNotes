@@ -1,6 +1,7 @@
 package com.surveyme.data
 
 import com.google.gson.Gson
+import com.surveyme.BuildConfig
 import com.surveyme.core.FixmeClassifier
 import com.surveyme.core.OsmElementRef
 import com.surveyme.data.model.OverpassResponse
@@ -112,7 +113,7 @@ class OverpassService {
 
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "SurveyMe/1.0")
+            .header("User-Agent", "FixMeAwesome/${BuildConfig.VERSION_NAME}")
             .build()
 
         client.newCall(request).execute().use { response ->
