@@ -183,6 +183,9 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         rowsAdapter.submit(rows.ifEmpty { listOf(DetailRow.Text("No text.")) })
         if (pending.isNotEmpty()) binding.recyclerRows.scrollToPosition(rows.size - 1)
 
+        // Every label (item 8); the list row shows only the first few.
+        LabelChips.bind(binding.chipLabels, note.labels)
+
         // Nothing can be posted to a note osm.org has not created yet.
         if (note.isPending) binding.actionRow.visibility = View.GONE else showActions(note, inFlight)
     }
@@ -207,6 +210,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
             .sortedWith(compareBy({ it.key != "fixme" }, { it.key }))
             .forEach { (key, value) -> rows += DetailRow.Tag(key, value) }
         rowsAdapter.submit(rows)
+        binding.chipLabels.visibility = View.GONE
         binding.actionRow.visibility = View.GONE
     }
 
@@ -216,6 +220,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         binding.textDates.text = "Created ${dateFormat.format(poi.createdAt)}"
         val text = poi.notes?.takeIf { it.isNotBlank() } ?: poi.description.orEmpty()
         rowsAdapter.submit(listOf(DetailRow.Text(text.ifBlank { "No details available" })))
+        binding.chipLabels.visibility = View.GONE
         binding.actionRow.visibility = View.GONE
     }
 

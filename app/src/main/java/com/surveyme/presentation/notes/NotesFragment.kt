@@ -15,6 +15,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.surveyme.core.NoteLabels
+import com.surveyme.core.PreferencesManager
 import com.surveyme.data.PoiManager
 import com.surveyme.databinding.FragmentNotesBinding
 import kotlinx.coroutines.launch
@@ -35,7 +37,7 @@ class NotesFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: NotesViewModel by viewModels {
-        NotesViewModelFactory(PoiManager.getRepository(requireContext()))
+        NotesViewModelFactory(PoiManager.getRepository(requireContext()), PreferencesManager(requireContext()))
     }
 
     private lateinit var notesAdapter: NotesAdapter
@@ -55,6 +57,7 @@ class NotesFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         
         setupRecyclerView()
+        setupFilterChips()
         observeViewModel()
         setupLocationUpdates()
         
@@ -85,6 +88,25 @@ class NotesFragment : Fragment() {
         }
     }
 
+    /**
+     * The audience chips (item 8). The checked chip follows the ViewModel's filter, which is
+     * seeded from prefs, so a restart shows the list and the chip in agreement.
+     */
+    private fun setupFilterChips() {
+        val chipFor = mapOf(
+            PreferencesManager.AUDIENCE_FILTER_ALL to binding.chipAll.id,
+            NoteLabels.SURVEYOR to binding.chipSurveyor.id,
+            NoteLabels.TELEMAPPER to binding.chipTelemapper.id,
+            NoteLabels.JOSM to binding.chipJosm.id
+        )
+        binding.chipGroupAudience.check(chipFor[viewModel.filter.value] ?: binding.chipAll.id)
+        binding.chipGroupAudience.setOnCheckedStateChangeListener { _, checkedIds ->
+            val id = checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener
+            val filter = chipFor.entries.firstOrNull { it.value == id }?.key ?: PreferencesManager.AUDIENCE_FILTER_ALL
+            viewModel.setFilter(filter)
+        }
+    }
+
     private fun observeViewModel() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -99,6 +121,11 @@ class NotesFragment : Fragment() {
                             binding.progressBar.visibility = View.GONE
                             binding.recyclerViewNotes.visibility = View.GONE
                             binding.textEmpty.visibility = View.VISIBLE
+                            binding.textEmpty.text = if (state.filtered) {
+                                "Nothing for this audience nearby.\nTry another chip."
+                            } else {
+                                "No OSM Notes found.\nGo to Settings and tap 'Find OSM Notes' to fetch nearby notes."
+                            }
                         }
                         is NotesViewModel.NotesState.Success -> {
                             binding.progressBar.visibility = View.GONE

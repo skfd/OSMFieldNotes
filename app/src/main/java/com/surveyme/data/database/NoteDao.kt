@@ -23,6 +23,10 @@ interface NoteDao {
     @Query("SELECT * FROM osm_notes WHERE poiId IN (:poiIds)")
     suspend fun getByPoiIds(poiIds: List<String>): List<OsmNote>
 
+    /** Every stored note; the classifier's cluster rule needs the neighbourhood. */
+    @Query("SELECT * FROM osm_notes")
+    suspend fun getAll(): List<OsmNote>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(notes: List<OsmNote>)
 

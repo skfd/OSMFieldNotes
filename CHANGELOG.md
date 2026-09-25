@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.13 (2026-09-25)
+
+**Roadmap item 8**: "build it as far as you can" (note classification)
+`NoteClassifier` (pure Kotlin, `core/`) ports every rule of `analysis/classify_notes.py`: topics on the boilerplate-stripped opening comment, survey requests, app reports (StreetComplete, Organic Maps, CoMaps, EveryDoor) split into "observed, needs edit" and "needs ground check", element/photo/source links, anonymous, discussed, stale, low signal, mine, note to self, loose future dates as a `future_dated` hint only, and duplicate clusters (same author, day, first four words, within the prototype's 600 m) computed in the repository over the fetched batch plus what is stored; strict tags `#surveyme` / `#resurvey`, `#surveyafter YYYY-MM[-DD]` (`scheduled` until the date, with the date persisted in `surveyAfter`), `#armchair` and `#josm` replace the heuristic audience. Labels are recomputed on every store (fetch, post answer, create placeholder), once for all stored rows on the first launch after this build (a `classifier_version` pref), and after a login or logout for `mine`. `NotePingPolicy` decides what pings: fixmes as before, notes only when open, surveyor-class, not stale and past their `#surveyafter` date (checked against the clock on each emission), so telemapper- and JOSM-only notes stay silent. The Notes tab gets an All / Surveyor / Telemapper / JOSM chip row persisted in prefs (fixmes show under All and Surveyor), lists notes that would ping now first and then by distance, marks them "NOTE · PINGS", and shows up to four label chips per row with all of them in the details header; map note markers are pins tinted by audience (green surveyor, blue telemapper, purple JOSM, grey none). Unit tests cover the rules, the ping policy and the 305-note corpus (`app/src/test/resources`), where the port reproduces the prototype's counts exactly (surveyor 180, telemapper 102, JOSM 93 vs 94).
+
 ## Version 1.2.12 (2026-09-25)
 
 **Roadmap item 7**: "build it as far as you can" (create a note)

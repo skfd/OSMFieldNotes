@@ -3,6 +3,9 @@ package com.surveyme.data.repository
 import android.content.Context
 import androidx.room.withTransaction
 import com.surveyme.core.Constants
+import com.surveyme.core.NoteClassifier
+import com.surveyme.core.NoteLabels
+import com.surveyme.core.NotePingPolicy
 import com.surveyme.data.FetchedNote
 import com.surveyme.data.OsmNotesService
 import com.surveyme.data.database.NoteActionDao
@@ -17,15 +20,23 @@ import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.InputStream
 import java.util.Date
+
+/**
+ * [ownDisplayName] answers the logged-in OSM user's name (null when logged out) so the
+ * classifier can label the user's own notes; it is a function because login changes at run time.
+ */
 class PoiRepository(
     private val database: SurveyMeDatabase,
-    private val context: Context
+    private val context: Context,
+    private val ownDisplayName: () -> String? = { null },
+    private val classifier: NoteClassifier = NoteClassifier()
 ) {
     private val poiDao = database.poiDao()
     private val noteDao = database.noteDao()
@@ -43,8 +54,19 @@ class PoiRepository(
     /** Notes tab rows: each POI with its structured note when it has one. */
     fun getNotesAndFixmesWithNote(): Flow<List<PoiWithNote>> = poiDao.getNotesAndFixmesWithNote()
 
-    /** What proximity may ping: active POIs minus closed notes. */
-    fun getPingablePois(): Flow<List<Poi>> = poiDao.getPingablePois()
+    /** Every active POI with its note row, for the map's marker colours. */
+    fun getAllActivePoisWithNote(): Flow<List<PoiWithNote>> = poiDao.getAllActivePoisWithNote()
+
+    /**
+     * What proximity may ping: fixmes and waypoints as before, and notes that pass
+     * [NotePingPolicy] (open, surveyor-class, not stale, past their `#surveyafter` date). The
+     * date is checked when the flow emits, so a note crossing its date is picked up on the next
+     * database change (a refetch while tracking, at the latest 15 min).
+     */
+    fun getPingablePois(): Flow<List<Poi>> = poiDao.getPingableCandidates().map { rows ->
+        val now = Date()
+        rows.filter { NotePingPolicy.mayPing(it.note, now) }.map { it.poi }
+    }
 
     suspend fun getNoteByPoiId(poiId: String): OsmNote? = noteDao.getByPoiId(poiId)
 
@@ -85,14 +107,16 @@ class PoiRepository(
     }
 
     /**
-     * Insert or replace note rows, keeping the app's own fields ([OsmNote.labels],
-     * [OsmNote.surveyAfter]) of rows that already exist. The API never knows about those.
-     * A note with a close or reopen still waiting in the queue keeps that optimistic status
-     * too, so a background refetch does not flip it back before the post went through.
+     * Insert or replace note rows. [OsmNote.labels] and [OsmNote.surveyAfter] are recomputed
+     * by the classifier on every store: they are derived from the thread, and the thread may
+     * have changed (a `#surveyafter` comment added, say). A note with a close or reopen still
+     * waiting in the queue keeps that optimistic status, so a background refetch does not flip
+     * it back before the post went through. Takes [FetchedNote]s because the cluster rule
+     * needs positions.
      */
-    suspend fun insertNotes(notes: List<OsmNote>) {
-        if (notes.isEmpty()) return
-        val ids = notes.map { it.noteId }
+    suspend fun insertNotes(fetched: List<FetchedNote>) {
+        if (fetched.isEmpty()) return
+        val ids = fetched.map { it.note.noteId }
         val existing = ids.chunked(500)
             .flatMap { noteDao.getByNoteIds(it) }
             .associateBy { it.noteId }
@@ -100,15 +124,58 @@ class PoiRepository(
             .flatMap { noteActionDao.getForNotes(it) }
             .groupBy { it.noteId }
             .mapValues { (_, actions) -> actions.mapNotNull { it.kind.resultingStatus }.lastOrNull() }
-        val merged = notes.map { note ->
-            val old = existing[note.noteId]
-            var out = if (old != null) note.copy(labels = old.labels, surveyAfter = old.surveyAfter) else note
-            pendingStatus[note.noteId]?.let { status ->
-                if (out.status != status) out = out.copy(status = status, closedAt = old?.closedAt ?: out.closedAt)
+        val merged = fetched.map { f ->
+            var out = f.note
+            pendingStatus[out.noteId]?.let { status ->
+                if (out.status != status) out = out.copy(status = status, closedAt = existing[out.noteId]?.closedAt ?: out.closedAt)
             }
-            out
+            out to f.poi
         }
-        noteDao.insertAll(merged)
+        noteDao.insertAll(classify(merged))
+    }
+
+    /**
+     * Labels and survey-after date for each (note, POI) pair, with the cluster rule run over
+     * the batch plus every other stored note (their positions come from their POI rows).
+     * Only the batch is returned; stored notes get their own turn on the next full fetch.
+     */
+    private suspend fun classify(batch: List<Pair<OsmNote, Poi>>): List<OsmNote> {
+        val now = Date()
+        val me = ownDisplayName()
+        val labelled = batch.map { (note, poi) ->
+            val result = classifier.classify(note, me, now)
+            note.copy(labels = result.labels, surveyAfter = result.surveyAfter) to poi
+        }
+        val batchIds = labelled.map { it.first.noteId }.toSet()
+        val stored = noteDao.getAll().filter { it.noteId !in batchIds }
+        val storedPois = stored.map { it.poiId }
+            .chunked(500)
+            .flatMap { poiDao.getPoisByIds(it) }
+            .associateBy { it.id }
+        val candidates = labelled.map { (note, poi) -> NoteClassifier.ClusterCandidate(note, poi.latitude, poi.longitude) } +
+            stored.mapNotNull { note -> storedPois[note.poiId]?.let { NoteClassifier.ClusterCandidate(note, it.latitude, it.longitude) } }
+        val clustered = classifier.markClusters(candidates)
+        return labelled.map { (note, _) ->
+            if (note.noteId in clustered) note.copy(labels = note.labels + NoteLabels.DUPLICATE_CLUSTER) else note
+        }
+    }
+
+    /**
+     * Recompute labels and survey-after for every stored note. Run once after an upgrade that
+     * changed the rules ([NoteClassifier.VERSION]) and after a login or logout, since the
+     * [NoteLabels.MINE] label depends on who is logged in. Returns how many notes were relabelled.
+     */
+    suspend fun reclassifyAll(): Int = database.withTransaction {
+        val notes = noteDao.getAll()
+        if (notes.isEmpty()) return@withTransaction 0
+        val pois = notes.map { it.poiId }
+            .chunked(500)
+            .flatMap { poiDao.getPoisByIds(it) }
+            .associateBy { it.id }
+        val pairs = notes.mapNotNull { note -> pois[note.poiId]?.let { note to it } }
+        noteDao.insertAll(classify(pairs))
+        Timber.i("Reclassified ${pairs.size} notes")
+        pairs.size
     }
 
     /**
@@ -120,7 +187,7 @@ class PoiRepository(
     suspend fun storeNoteFromServer(fetched: FetchedNote, completedActionId: Long? = null) = database.withTransaction {
         completedActionId?.let { noteActionDao.delete(it) }
         insertPois(listOf(fetched.poi))
-        insertNotes(listOf(fetched.note))
+        insertNotes(listOf(fetched))
     }
 
     /** The optimistic status for a queued close or reopen; [OsmNote.closedAt] follows it. */
@@ -139,7 +206,9 @@ class PoiRepository(
     suspend fun insertPlaceholderNote(note: OsmNote, poi: Poi, request: NoteActionRequest): Long =
         database.withTransaction {
             poiDao.insertPoi(poi)
-            noteDao.insertAll(listOf(note))
+            // Labelled like any note (topics, "mine"); no cluster rule, it is not on osm.org yet.
+            val result = classifier.classify(note, ownDisplayName())
+            noteDao.insertAll(listOf(note.copy(labels = result.labels, surveyAfter = result.surveyAfter)))
             noteActionDao.insert(request)
         }
 
@@ -171,7 +240,7 @@ class PoiRepository(
      * rows outside the radius, drop in-radius notes the API no longer returns (it returns open
      * notes and ones closed within 7 days, so an absent note is closed or hidden) unless they
      * were closed within [Constants.NOTE_CLOSED_RETENTION_MILLIS], then merge the page in,
-     * keeping ping flags on the POI and labels/surveyAfter on the note. When [truncated] the
+     * keeping ping flags on the POI and reclassifying each note. When [truncated] the
      * page is not the whole area and nothing in radius is dropped. Returns how many rows went.
      */
     suspend fun storeFetchedNotes(
@@ -209,7 +278,7 @@ class PoiRepository(
         }
 
         insertPois(page.map { it.poi })
-        insertNotes(page.map { it.note })
+        insertNotes(page)
         expiredOutside + dropped
     }
 

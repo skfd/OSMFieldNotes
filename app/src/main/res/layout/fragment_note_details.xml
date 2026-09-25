@@ -76,6 +76,20 @@
         app:layout_constraintTop_toBottomOf="@+id/textStatus"
         tools:text="Created 2026-09-20 14:02 · closed 2026-09-24 09:15" />
 
+    <!-- All classification labels of a note (item 8); hidden for fixmes and pre-v4 rows. -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/chipLabels"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:visibility="gone"
+        app:chipSpacingHorizontal="4dp"
+        app:chipSpacingVertical="2dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textDates"
+        tools:visibility="visible" />
+
     <View
         android:id="@+id/dividerTop"
         android:layout_width="0dp"
@@ -84,7 +98,7 @@
         android:background="?android:attr/listDivider"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/textDates" />
+        app:layout_constraintTop_toBottomOf="@+id/chipLabels" />
 
     <!-- The thread (notes) or the fixme text and raw tags (fixmes). -->
     <androidx.recyclerview.widget.RecyclerView

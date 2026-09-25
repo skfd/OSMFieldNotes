@@ -3,7 +3,13 @@ package com.surveyme
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.surveyme.core.NoteClassifier
+import com.surveyme.core.PreferencesManager
 import com.surveyme.data.NoteActionQueue
+import com.surveyme.data.PoiManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.File
 import java.io.FileWriter
@@ -27,6 +33,26 @@ class SurveyMeApplication : Application() {
         initializeOSMDroid()
         // Comment / close / reopen requests left over from an offline walk go out now.
         NoteActionQueue.get(this).start()
+        reclassifyNotesIfRulesChanged()
+    }
+
+    /**
+     * Notes stored by a build with older (or no) classifier rules get their labels recomputed
+     * once, so rows from before item 8 can ping and be filtered. The prefs flag is set only
+     * after the sweep went through; a crash mid-way just repeats it next launch.
+     */
+    private fun reclassifyNotesIfRulesChanged() {
+        val prefs = PreferencesManager(this)
+        if (prefs.classifierVersion >= NoteClassifier.VERSION) return
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val count = PoiManager.getRepository(this@SurveyMeApplication).reclassifyAll()
+                prefs.classifierVersion = NoteClassifier.VERSION
+                Timber.i("Classifier v${NoteClassifier.VERSION}: relabelled $count stored notes")
+            } catch (e: Exception) {
+                Timber.e(e, "Reclassifying stored notes failed; will retry next launch")
+            }
+        }
     }
 
     private fun initializeOSMDroid() {

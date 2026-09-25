@@ -9,10 +9,16 @@ object PoiManager {
     private var repository: PoiRepository? = null
     private var fetcher: NearbyFetcher? = null
 
+    @Synchronized
     fun getRepository(context: Context): PoiRepository {
         if (repository == null) {
-            val database = SurveyMeDatabase.getDatabase(context.applicationContext)
-            repository = PoiRepository(database, context.applicationContext)
+            val appContext = context.applicationContext
+            val database = SurveyMeDatabase.getDatabase(appContext)
+            // The classifier labels the logged-in user's own notes "mine"; read the name lazily
+            // per store so a login during the session is seen without rebuilding anything.
+            repository = PoiRepository(database, appContext, ownDisplayName = {
+                (OsmAuthManager.get(appContext).state.value as? OsmAuthState.LoggedIn)?.displayName
+            })
         }
         return repository!!
     }

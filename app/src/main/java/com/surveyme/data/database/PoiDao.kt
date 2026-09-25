@@ -18,6 +18,11 @@ interface PoiDao {
     @Query("SELECT * FROM pois WHERE isActive = 1 ORDER BY priority DESC, createdAt DESC")
     fun getAllActivePois(): Flow<List<Poi>>
 
+    /** Every active POI with its note row when it has one; the map colours note markers by labels. */
+    @Transaction
+    @Query("SELECT * FROM pois WHERE isActive = 1 ORDER BY priority DESC, createdAt DESC")
+    fun getAllActivePoisWithNote(): Flow<List<PoiWithNote>>
+
     @Query("SELECT * FROM pois WHERE isActive = 1 AND category = :category ORDER BY priority DESC, createdAt DESC")
     fun getPoisByCategory(category: PoiCategory): Flow<List<Poi>>
 
@@ -29,14 +34,17 @@ interface PoiDao {
     fun getNotesAndFixmesWithNote(): Flow<List<PoiWithNote>>
 
     /**
-     * Active POIs that may ping: everything that is not a note, plus notes that are open (or
-     * have no note row yet, pre-v4 data). Item 8 adds labels and surveyAfter to this WHERE.
+     * Candidates for a ping: active POIs that are not a note, plus notes that are open (or
+     * have no note row yet, pre-v4 data), each with its note row. The class and date rules
+     * are applied in Kotlin by [com.surveyme.core.NotePingPolicy] so they stay testable and
+     * can become a setting (item 13).
      */
+    @Transaction
     @Query(
         "SELECT pois.* FROM pois LEFT JOIN osm_notes ON osm_notes.poiId = pois.id " +
             "WHERE pois.isActive = 1 AND (osm_notes.status IS NULL OR osm_notes.status = 'open')"
     )
-    fun getPingablePois(): Flow<List<Poi>>
+    fun getPingableCandidates(): Flow<List<PoiWithNote>>
 
     @Query("SELECT * FROM pois WHERE id = :id LIMIT 1")
     suspend fun getPoiById(id: String): Poi?

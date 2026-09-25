@@ -16,6 +16,10 @@ class NotesAdapter(
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
+    private companion object {
+        const val MAX_ROW_CHIPS = 4
+    }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): NoteViewHolder {
         val binding = ItemNoteBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
@@ -64,13 +68,17 @@ class NotesAdapter(
                     textType.text = when {
                         note != null && note.isPending -> "NOTE · PENDING"
                         note != null && !note.isOpen -> "NOTE · ${note.status.apiValue.uppercase()}"
+                        item.pingable -> "NOTE · PINGS"
                         else -> "NOTE"
                     }
                     textType.visibility = android.view.View.VISIBLE
                 } else {
                     textType.visibility = android.view.View.GONE
                 }
-                
+
+                // A few labels per row (audience first); the details sheet shows them all.
+                LabelChips.bind(chipLabels, note?.labels ?: emptySet(), max = MAX_ROW_CHIPS)
+
                 textDistance.text = item.distance?.let { formatDistance(it) } ?: ""
             }
         }

@@ -51,6 +51,11 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.surveyme.core.LastKnownLocation
 import com.surveyme.data.model.OsmNote
 import com.surveyme.presentation.notes.CreateNoteDialogFragment
+import android.graphics.drawable.Drawable
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
+import com.surveyme.data.database.PoiWithNote
+import com.surveyme.presentation.notes.AudienceColors
 
 class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
@@ -447,11 +452,11 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
                     fetcher.fetch(lat, lon, NearbyFetcher.Trigger.MAP_LOAD)
                 }
 
-                // Now load and display POIs
-                repository.getAllActivePois().collectLatest { pois ->
-                    Timber.d("Loading ${pois.size} POIs onto map")
+                // Now load and display POIs, with note rows so markers can be coloured by audience.
+                repository.getAllActivePoisWithNote().collectLatest { rows ->
+                    Timber.d("Loading ${rows.size} POIs onto map")
                     withContext(Dispatchers.Main) {
-                        displayPoisOnMap(pois)
+                        if (view != null) displayPoisOnMap(rows)
                     }
                 }
             } catch (e: Exception) {
@@ -460,7 +465,15 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         }
     }
 
-    private fun displayPoisOnMap(pois: List<Poi>) {
+    /** One tinted pin per audience colour, shared by every note marker of that colour. */
+    private val noteIcons = HashMap<Int, Drawable>()
+
+    private fun noteIcon(color: Int): Drawable = noteIcons.getOrPut(color) {
+        val base = ContextCompat.getDrawable(requireContext(), R.drawable.ic_note_marker)!!
+        DrawableCompat.wrap(base.mutate()).also { DrawableCompat.setTint(it, color) }
+    }
+
+    private fun displayPoisOnMap(rows: List<PoiWithNote>) {
         // Clear existing POI markers
         poiMarkers.forEach { marker ->
             binding.mapView.overlays.remove(marker)
@@ -468,16 +481,21 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         poiMarkers.clear()
 
         // Add new POI markers
-        pois.forEach { poi ->
+        rows.forEach { row ->
+            val poi = row.poi
+            val note = row.note
             val marker = Marker(binding.mapView).apply {
                 position = GeoPoint(poi.latitude, poi.longitude)
                 title = poi.name
                 snippet = poi.description
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
-                // Set icon based on category; a note still waiting to be posted gets its own.
+                // A note still waiting to be posted gets the upload icon; a classified note a pin
+                // in its audience colour (item 8); everything else its category icon.
                 icon = if (poi.source == OsmNotesService.SOURCE_NOTES && poi.id.startsWith(OsmNote.POI_ID_PREFIX + "-")) {
                     resources.getDrawable(android.R.drawable.ic_menu_upload, null)
+                } else if (note != null) {
+                    noteIcon(AudienceColors.colorForLabels(note.labels))
                 } else when (poi.category) {
                     PoiCategory.TOURIST_ATTRACTION -> resources.getDrawable(android.R.drawable.star_on, null)
                     PoiCategory.RESTAURANT -> resources.getDrawable(android.R.drawable.ic_menu_myplaces, null)
@@ -526,7 +544,7 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         // Refresh the map
         binding.mapView.invalidate()
 
-        Timber.d("Displayed ${pois.size} POIs on map")
+        Timber.d("Displayed ${rows.size} POIs on map")
     }
 
     override fun onDestroyView() {

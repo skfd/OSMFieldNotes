@@ -107,8 +107,13 @@ class NoteActionQueue private constructor(context: Context) {
         if (!started.compareAndSet(false, true)) return
         registerConnectivity()
         scope.launch {
+            var first = true
             auth.state.collect { state ->
                 if (state is OsmAuthState.LoggedIn) drain("login")
+                // The "mine" label follows who is logged in; the first emission is the state at
+                // start, which the stored labels already reflect.
+                if (!first) runCatching { repository.reclassifyAll() }.onFailure { Timber.w(it, "Reclassify after login change failed") }
+                first = false
             }
         }
         drain("app start")

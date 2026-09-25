@@ -23,7 +23,29 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_ZOOM = "last_zoom"
         private const val KEY_DRAW_TRACK = "draw_track"
         private const val KEY_FETCH_PREFIX = "fetch_centre_"
+        private const val KEY_CLASSIFIER_VERSION = "classifier_version"
+        private const val KEY_NOTES_AUDIENCE_FILTER = "notes_audience_filter"
+
+        /** The Notes tab filter value that shows everything; the others are [NoteLabels.AUDIENCES]. */
+        const val AUDIENCE_FILTER_ALL = "all"
     }
+
+    /**
+     * The [NoteClassifier.VERSION] whose rules the stored labels were computed with; 0 before
+     * item 8. A lower value than the code's triggers one reclassification of all notes.
+     */
+    var classifierVersion: Int
+        get() = prefs.getInt(KEY_CLASSIFIER_VERSION, 0)
+        set(value) {
+            prefs.edit().putInt(KEY_CLASSIFIER_VERSION, value).apply()
+        }
+
+    /** The audience chip selected in the Notes tab: [AUDIENCE_FILTER_ALL] or one of [NoteLabels.AUDIENCES]. */
+    var notesAudienceFilter: String
+        get() = prefs.getString(KEY_NOTES_AUDIENCE_FILTER, AUDIENCE_FILTER_ALL) ?: AUDIENCE_FILTER_ALL
+        set(value) {
+            prefs.edit().putString(KEY_NOTES_AUDIENCE_FILTER, value).apply()
+        }
 
     /** Where and when a source was last fetched successfully. */
     data class FetchCentre(val latitude: Double, val longitude: Double, val radiusMeters: Int, val timeMillis: Long)
