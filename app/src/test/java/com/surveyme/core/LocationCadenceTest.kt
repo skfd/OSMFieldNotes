@@ -169,6 +169,22 @@ class LocationCadenceTest {
     }
 
     @Test
+    fun `a derived move inside the accuracy circle is standing still, not walking`() {
+        // 35 m north in 60 s is 0.58 m/s, enough for walking, if it were real.
+        val a = Fix(43.65, -79.38, 0L, null, 50f)
+        val b = Fix(43.65 + 35.0 / 111_320.0, -79.38, 60_000L, null, 50f)
+        assertEquals(0f, LocationCadence.speedBetween(a, b))
+        val s = TierSelector(Tier.STATIONARY)
+        assertNull(s.onFix(a))
+        assertNull(s.onFix(b))
+        assertEquals(Tier.STATIONARY, s.tier)
+        // The same jump with a 10 m GPS fix is a real move.
+        val s2 = TierSelector(Tier.STATIONARY)
+        assertNull(s2.onFix(a.copy(accuracyMeters = 10f)))
+        assertEquals(Tier.WALKING, s2.onFix(b.copy(accuracyMeters = 10f)))
+    }
+
+    @Test
     fun `a coarse fix does not run the proximity pass`() {
         assertTrue(LocationCadence.isFixUsableForPings(null, 50))
         assertTrue(LocationCadence.isFixUsableForPings(100f, 50))

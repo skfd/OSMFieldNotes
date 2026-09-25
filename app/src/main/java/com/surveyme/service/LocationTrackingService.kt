@@ -67,6 +67,8 @@ class LocationTrackingService : Service() {
         private const val SUMMARY_INTERVAL_MILLIS = 10 * 60_000L
         /** A fetch holds the CPU at most this long; the fetcher's own timeouts are shorter. */
         private const val FETCH_WAKE_LOCK_MILLIS = 45_000L
+        /** A re-request often echoes the cached last fix; older than this it is not where the walker is. */
+        private const val STALE_FIX_MILLIS = 30_000L
 
         private val _isTrackingFlow = MutableStateFlow(false)
         val isTrackingFlow: StateFlow<Boolean> = _isTrackingFlow.asStateFlow()
@@ -164,6 +166,13 @@ class LocationTrackingService : Service() {
 
     private fun handleLocationUpdate(location: Location) {
         val now = System.currentTimeMillis()
+        val age = now - location.time
+        if (age > STALE_FIX_MILLIS) {
+            // Neither the cadence (its silence clock would read it as minutes old), the proximity
+            // pass nor the track should see a fix from before the request was made.
+            Timber.d("Stale fix dropped (${age / 1000}s old)")
+            return
+        }
         Timber.d("Location update: ${location.latitude}, ${location.longitude}")
         _lastLocationFlow.value = location
         _statsFlow.update { it.copy(fixes = it.fixes + 1, updatedAtMillis = now) }
@@ -171,7 +180,8 @@ class LocationTrackingService : Service() {
         // Cadence first, so a walker setting out gets the faster request before anything else.
         val fix = LocationCadence.Fix(
             location.latitude, location.longitude, location.time,
-            if (location.hasSpeed()) location.speed else null
+            if (location.hasSpeed()) location.speed else null,
+            if (location.hasAccuracy()) location.accuracy else null
         )
         tierSelector.onFix(fix)?.let { tier ->
             applyTier(tier, "speed %.1f m/s".format(tierSelector.smoothedMps ?: fix.speedMps ?: 0f))

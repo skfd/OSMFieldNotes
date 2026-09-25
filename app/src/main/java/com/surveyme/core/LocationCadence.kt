@@ -56,19 +56,34 @@ object LocationCadence {
         else -> Tier.FAST
     }
 
-    /** A fix as the selector sees it. [speedMps] is the provider's own reading when it has one. */
-    data class Fix(val latitude: Double, val longitude: Double, val timeMillis: Long, val speedMps: Float? = null)
+    /**
+     * A fix as the selector sees it. [speedMps] is the provider's own reading when it has one;
+     * [accuracyMeters] its radius, which bounds how much of a derived move is real.
+     */
+    data class Fix(
+        val latitude: Double,
+        val longitude: Double,
+        val timeMillis: Long,
+        val speedMps: Float? = null,
+        val accuracyMeters: Float? = null
+    )
 
     /**
      * Speed over ground between two fixes: the provider's reading when it has one, else distance
-     * over time. Null when the fixes are too close in time to say anything.
+     * over time. Null when the fixes are too close in time to say anything. A derived move
+     * shorter than either fix's accuracy is noise (a 35 m wifi jump inside a 50 m circle), and
+     * noise is evidence of standing still, so it counts as zero rather than as nothing: null
+     * would keep the silence clock ticking over and never let the tier drop.
      */
     fun speedBetween(previous: Fix?, current: Fix): Float? {
         if (previous == null) return current.speedMps?.takeIf { it >= 0f }
         val dt = current.timeMillis - previous.timeMillis
         if (dt < MIN_FIX_GAP_MILLIS) return null
         current.speedMps?.takeIf { it >= 0f }?.let { return it }
-        return distanceMeters(previous.latitude, previous.longitude, current.latitude, current.longitude) / (dt / 1000f)
+        val moved = distanceMeters(previous.latitude, previous.longitude, current.latitude, current.longitude)
+        val noise = maxOf(previous.accuracyMeters ?: 0f, current.accuracyMeters ?: 0f)
+        if (moved < noise) return 0f
+        return moved / (dt / 1000f)
     }
 
     /** Haversine, metres. Own copy so tests need no Android `Location`. */
