@@ -85,7 +85,7 @@ class PermissionManager(private val context: Context) {
     ) {
         MaterialAlertDialogBuilder(activity)
             .setTitle("Location Permission Required")
-            .setMessage("Survey Me needs location permission to:\n\n" +
+            .setMessage("FixMeAwesome needs location permission to:\n\n" +
                     "• Show your position on the map\n" +
                     "• Record your walking tracks\n" +
                     "• Notify you about nearby points of interest\n\n" +
@@ -107,7 +107,7 @@ class PermissionManager(private val context: Context) {
         MaterialAlertDialogBuilder(activity)
             .setTitle("Background Location Required")
             .setMessage("To continue tracking your path when the app is in the background, " +
-                    "Survey Me needs 'Allow all the time' location permission.\n\n" +
+                    "FixMeAwesome needs 'Allow all the time' location permission.\n\n" +
                     "This ensures complete track recording during your surveys.")
             .setPositiveButton("Grant Permission") { _, _ ->
                 onPositive()

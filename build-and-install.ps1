@@ -1,6 +1,6 @@
-# Survey Me Build and Install Script
+# FixMeAwesome Build and Install Script
 
-Write-Host "Survey Me - Build and Install Script" -ForegroundColor Cyan
+Write-Host "FixMeAwesome - Build and Install Script" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -106,7 +106,7 @@ if ($installResult -match "Success") {
 Write-Host ""
 $launch = Read-Host "Do you want to launch the app? (Y/N)"
 if ($launch -eq "Y" -or $launch -eq "y") {
-    Write-Host "Launching Survey Me..." -ForegroundColor Yellow
+    Write-Host "Launching FixMeAwesome..." -ForegroundColor Yellow
     adb shell am start -n com.surveyme.debug/com.surveyme.presentation.MainActivity
 }
 

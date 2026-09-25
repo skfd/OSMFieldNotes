@@ -1,4 +1,4 @@
-# Survey Me
+# FixMeAwesome
 
 Android mapping app for OpenStreetMap field surveys with GPS tracking and POI notifications.
 

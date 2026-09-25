@@ -1,4 +1,4 @@
-Android app "FixMeAwesome" (package name still "Survey Me"). For OpenStreetMap contributors who like long walks and want those walks to fix the map.
+Android app "FixMeAwesome" (package id still `com.surveyme`). For OpenStreetMap contributors who like long walks and want those walks to fix the map.
 
 Main interface is a map. You move, zoom and do other normal map interactions. It shows you on the map and keeps tracking you in the background until you explicitly stop it; the system should not unload it.
 

@@ -24,8 +24,8 @@ android {
         applicationId = "com.surveyme"
         minSdk = 23
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.2.19"
+        versionCode = 28
+        versionName = "1.2.20"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

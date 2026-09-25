@@ -1,7 +1,7 @@
 package com.surveyme.core
 
 object Constants {
-    const val APP_NAME = "Survey Me"
+    const val APP_NAME = "FixMeAwesome"
     const val DATABASE_NAME = "survey_me_database"
     const val PREFERENCES_NAME = "survey_me_preferences"
 

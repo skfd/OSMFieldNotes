@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Survey Me</string>
-    <string name="welcome_message">Welcome to Survey Me</string>
+    <string name="app_name">FixMeAwesome</string>
+    <string name="welcome_message">Welcome to FixMeAwesome</string>
     <string name="navigation_map">Map</string>
     <string name="navigation_tracks">Tracks</string>
     <string name="navigation_settings">Settings</string>

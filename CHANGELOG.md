@@ -1,4 +1,9 @@
-# Survey Me - Changelog
+# FixMeAwesome - Changelog
+
+## Version 1.2.20 (2026-09-25)
+
+**Roadmap item 15**: "build it as far as you can" (rename)
+The launcher label, the welcome string, the foreground-service notification title and the two permission dialogs now say FixMeAwesome instead of Survey Me, `rootProject.name` is `FixMeAwesome`, and README, FIRST_RUN, app-description, the changelog heading, CLAUDE.md and the build-and-install script banners follow; older changelog entries, the roadmap history and `design/` keep the old name as history. Deliberately unchanged: the package id `com.surveyme`, the Kotlin package and class names (`SurveyMeApplication`, `SurveyMeDatabase`, `Theme.SurveyMe`), the `fixmeawesome://oauth/callback` redirect, the FileProvider authority, and every on-device file name (`surveyme_database`, `survey_me_preferences`, `osm_auth.xml`, `app_log.txt`, `crash_log.txt`), so existing installs keep their data.
 
 ## Version 1.2.19 (2026-09-25)
 

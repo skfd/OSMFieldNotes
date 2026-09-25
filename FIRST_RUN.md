@@ -1,6 +1,6 @@
 # First Run In Android Studio
 
-This guide will help you set up and run the `Survey Me` project in Android Studio for the first time.
+This guide will help you set up and run the `FixMeAwesome` project in Android Studio for the first time.
 
 ## Prerequisites
 
