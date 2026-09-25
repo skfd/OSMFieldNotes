@@ -38,7 +38,7 @@ class NotesViewModel(
     private val _filter = MutableStateFlow(prefs.notesAudienceFilter)
     val filter: StateFlow<String> = _filter.asStateFlow()
 
-    /** The fixme age setting (item 12); seeded from prefs, changed from the tab's overflow menu. */
+    /** The fixme age setting (item 12); seeded from prefs, changed from the tab's overflow menu or Settings. */
     private val _fixmeMaxAge = MutableStateFlow(prefs.fixmeMaxAge)
     val fixmeMaxAge: StateFlow<FixmeMaxAge> = _fixmeMaxAge.asStateFlow()
 
@@ -47,13 +47,20 @@ class NotesViewModel(
     private data class Inputs(val rows: List<com.surveyme.data.database.PoiWithNote>, val filter: String, val location: Location?, val maxAge: FixmeMaxAge)
 
     init {
+        // Item 13: the Settings screen writes the same prefs; follow it while this model lives.
+        viewModelScope.launch {
+            PreferencesManager.loopSettingsTick.collect { _fixmeMaxAge.value = prefs.fixmeMaxAge }
+        }
         loadNotes()
     }
 
     private fun loadNotes() {
         viewModelScope.launch {
             _notesState.value = NotesState.Loading
-            combine(repository.getNotesAndFixmesWithNote(), _filter, location, _fixmeMaxAge) { rows, filter, loc, maxAge ->
+            combine(
+                repository.getNotesAndFixmesWithNote(), _filter, location, _fixmeMaxAge,
+                PreferencesManager.loopSettingsTick
+            ) { rows, filter, loc, maxAge, _ ->
                 Inputs(rows, filter, loc, maxAge)
             }
                 .catch { e ->
@@ -62,6 +69,7 @@ class NotesViewModel(
                 }
                 .collect { (rows, filter, loc, maxAge) ->
                     val now = Date()
+                    val settings = prefs.pingSettings
                     val all = rows
                         // Item 12: a fixme on a relation is not walkable and one older than the
                         // setting is not worth the walk; both stay stored (the setting may change).
@@ -73,7 +81,8 @@ class NotesViewModel(
                                 poi = poi,
                                 distance = distance,
                                 note = row.note,
-                                pingable = row.note != null && NotePingPolicy.mayPing(row.note, now)
+                                // Under the item 13 settings too, so "PINGS" means what the service would do.
+                                pingable = row.note != null && NotePingPolicy.mayPing(poi, row.note, now, settings)
                             )
                         }
                     // Pinging notes first, dismissed fixmes last, distance within each group.

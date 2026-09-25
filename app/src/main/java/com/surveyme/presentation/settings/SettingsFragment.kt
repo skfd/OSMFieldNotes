@@ -32,6 +32,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.navigation.fragment.findNavController
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.timepicker.MaterialTimePicker
+import com.google.android.material.timepicker.TimeFormat
+import com.surveyme.core.FixmeMaxAge
+import com.surveyme.core.NoteLabels
+import com.surveyme.core.PingSettings
+import com.surveyme.core.QuietHours
 import com.surveyme.service.LocationTrackingService
 
 class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
@@ -66,6 +74,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         permissionManager = PermissionManager(requireContext())
 
         setupSettings()
+        setupLoopSettings()
         setupOsmAccount()
         setupPermissions()
         setupPoiSection()
@@ -101,6 +110,126 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 preferencesManager.isDrawTrackEnabled = isChecked
             }
         }
+    }
+
+    /**
+     * Item 13: the loop's knobs, plain widgets bound to [PreferencesManager]. Every write bumps
+     * the prefs tick, which the ping flow and the Notes tab follow; the service reads the
+     * radius and quiet hours on each fix.
+     */
+    private fun setupLoopSettings() {
+        val prefs = preferencesManager
+        with(binding) {
+            renderLoopValues()
+
+            rowFetchRadius.setOnClickListener {
+                val choices = PreferencesManager.FETCH_RADIUS_CHOICES
+                singleChoice(
+                    R.string.settings_fetch_radius,
+                    choices.map { getString(R.string.radius_km, it / 1000) },
+                    choices.indexOf(prefs.fetchRadiusMeters)
+                ) { prefs.fetchRadiusMeters = choices[it]; renderLoopValues() }
+            }
+            rowPingRadius.setOnClickListener {
+                val choices = PreferencesManager.PING_RADIUS_CHOICES
+                singleChoice(
+                    R.string.settings_ping_radius,
+                    choices.map { getString(R.string.radius_m, it) },
+                    choices.indexOf(prefs.pingRadiusMeters)
+                ) { prefs.pingRadiusMeters = choices[it]; renderLoopValues() }
+            }
+            rowFixmeAge.setOnClickListener {
+                val choices = FixmeMaxAge.values().toList()
+                singleChoice(
+                    R.string.settings_fixme_age,
+                    choices.map { it.label },
+                    choices.indexOf(prefs.fixmeMaxAge)
+                ) { prefs.fixmeMaxAge = choices[it]; renderLoopValues() }
+            }
+
+            classCheckboxes().forEach { (box, cls) ->
+                box.setOnCheckedChangeListener { _, checked ->
+                    val current = prefs.pingClasses
+                    val next = if (checked) current + cls else current - cls
+                    if (next != current) prefs.pingClasses = next
+                }
+            }
+
+            switchMuteNotes.setOnCheckedChangeListener { _, checked -> prefs.muteNotes = checked }
+            switchMuteFixmes.setOnCheckedChangeListener { _, checked -> prefs.muteFixmes = checked }
+
+            switchQuietHours.setOnCheckedChangeListener { _, checked ->
+                prefs.quietHoursEnabled = checked
+                renderLoopValues()
+            }
+            buttonQuietStart.setOnClickListener {
+                pickTime(R.string.settings_quiet_from, prefs.quietHoursStart) { prefs.quietHoursStart = it; renderLoopValues() }
+            }
+            buttonQuietEnd.setOnClickListener {
+                pickTime(R.string.settings_quiet_to, prefs.quietHoursEnd) { prefs.quietHoursEnd = it; renderLoopValues() }
+            }
+
+            rowMutedItems.setOnClickListener { findNavController().navigate(R.id.mutedItemsFragment) }
+        }
+
+        // The muted count follows the table, so a mute from a ping shows up while this screen is open.
+        val repository = PoiManager.getRepository(requireContext())
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.observeMutedItems().collect { rows ->
+                    binding.textMutedItems.text = getString(R.string.settings_muted_items, rows.size)
+                }
+            }
+        }
+    }
+
+    private fun classCheckboxes() = listOf(
+        binding.checkClassSurveyor to NoteLabels.SURVEYOR,
+        binding.checkClassTelemapper to NoteLabels.TELEMAPPER,
+        binding.checkClassJosm to NoteLabels.JOSM,
+        binding.checkClassUnclassified to PingSettings.UNCLASSIFIED
+    )
+
+    /** Current values into the widgets. Listeners see no change when the value is the same, so this is safe to call after a write. */
+    private fun renderLoopValues() {
+        val prefs = preferencesManager
+        with(binding) {
+            textFetchRadius.text = getString(R.string.radius_km, prefs.fetchRadiusMeters / 1000)
+            textPingRadius.text = getString(R.string.radius_m, prefs.pingRadiusMeters)
+            textFixmeAge.text = prefs.fixmeMaxAge.label
+            val classes = prefs.pingClasses
+            classCheckboxes().forEach { (box, cls) -> box.isChecked = cls in classes }
+            switchMuteNotes.isChecked = prefs.muteNotes
+            switchMuteFixmes.isChecked = prefs.muteFixmes
+            val quiet = prefs.quietHoursEnabled
+            switchQuietHours.isChecked = quiet
+            layoutQuietTimes.visibility = if (quiet) View.VISIBLE else View.GONE
+            buttonQuietStart.text = "${getString(R.string.settings_quiet_from)} ${QuietHours.format(prefs.quietHoursStart)}"
+            buttonQuietEnd.text = "${getString(R.string.settings_quiet_to)} ${QuietHours.format(prefs.quietHoursEnd)}"
+        }
+    }
+
+    private fun singleChoice(titleRes: Int, labels: List<String>, checked: Int, onPick: (Int) -> Unit) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(titleRes)
+            .setSingleChoiceItems(labels.toTypedArray(), checked) { dialog, which ->
+                onPick(which)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** A 24-hour Material time picker seeded with [minuteOfDay]; [onPick] gets the new minute of the day. */
+    private fun pickTime(titleRes: Int, minuteOfDay: Int, onPick: (Int) -> Unit) {
+        val picker = MaterialTimePicker.Builder()
+            .setTimeFormat(TimeFormat.CLOCK_24H)
+            .setHour(minuteOfDay / 60)
+            .setMinute(minuteOfDay % 60)
+            .setTitleText(titleRes)
+            .build()
+        picker.addOnPositiveButtonClickListener { onPick(picker.hour * 60 + picker.minute) }
+        picker.show(childFragmentManager, "time_picker")
     }
 
     private fun setupOsmAccount() {

@@ -41,6 +41,9 @@ data class Poi(
 
     val isFixme: Boolean get() = source == "osm_fixme"
 
+    /** An OSM note's POI row (its thread lives in `osm_notes`). */
+    val isNote: Boolean get() = source == "osm_notes"
+
     /** A fixme the user dismissed for now (item 10): it stays listed, dimmed, and does not ping. */
     val isDismissedFixme: Boolean get() = isFixme && isMuted
 

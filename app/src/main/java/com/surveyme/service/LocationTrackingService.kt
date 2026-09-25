@@ -17,7 +17,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.surveyme.R
+import com.surveyme.core.PreferencesManager
 import com.surveyme.core.ProximityDetector
+import com.surveyme.core.QuietHours
 import com.surveyme.data.NearbyFetcher
 import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
@@ -67,6 +69,7 @@ class LocationTrackingService : Service() {
     private lateinit var notificationManager: NotificationManager
     private lateinit var proximityDetector: ProximityDetector
     private lateinit var fetcher: NearbyFetcher
+    private lateinit var prefs: PreferencesManager
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val poisCache = mutableListOf<Poi>()
@@ -80,6 +83,7 @@ class LocationTrackingService : Service() {
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         proximityDetector = ProximityDetector()
         fetcher = PoiManager.getFetcher(this)
+        prefs = PreferencesManager(this)
 
         createNotificationChannels()
         setupLocationCallback()
@@ -135,20 +139,28 @@ class LocationTrackingService : Service() {
 
         Timber.d("POI cache size: ${currentPois.size}")
 
-        // Check proximity to POIs
-        if (currentPois.isNotEmpty()) {
+        // Item 13: quiet hours suppress pings, not tracking or fetching. The detector is not
+        // called at all, so nothing is marked notified and the items ping once the window ends.
+        // The Notifications switch in Settings is the same kind of gate.
+        val quiet = QuietHours.isQuiet(prefs.quietHours)
+        if (quiet || !prefs.areNotificationsEnabled) {
+            Timber.d("Pings suppressed (${if (quiet) "quiet hours" else "notifications off"})")
+        } else if (currentPois.isNotEmpty()) {
+            // Check proximity to POIs
+            val pingRadius = prefs.pingRadiusMeters
             Timber.d("Checking proximity to ${currentPois.size} POIs...")
 
             // Log distances to all POIs for debugging
             currentPois.forEach { poi ->
                 val distance = poi.distanceTo(location.latitude, location.longitude)
-                Timber.d("Distance to ${poi.name}: ${distance}m (radius: ${poi.notificationRadius}m)")
+                Timber.d("Distance to ${poi.name}: ${distance}m (radius: ${proximityDetector.radiusFor(poi, pingRadius)}m)")
             }
 
             proximityDetector.checkProximity(
                 location.latitude,
                 location.longitude,
-                currentPois
+                currentPois,
+                pingRadius
             ) { poi, distance ->
                 Timber.d("Proximity notification triggered for ${poi.name} at ${distance}m")
                 showPoiNotification(poi, distance)

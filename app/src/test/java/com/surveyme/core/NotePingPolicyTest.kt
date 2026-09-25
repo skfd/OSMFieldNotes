@@ -80,6 +80,71 @@ class NotePingPolicyTest {
         assertFalse(NotePingPolicy.mayPing(legacy, null, now))
     }
 
+    // Item 13: the class set, the mute switches.
+
+    @Test
+    fun `class set decides which audiences ping`() {
+        val tele = note(labels = setOf(NoteLabels.TELEMAPPER))
+        val josm = note(labels = setOf(NoteLabels.JOSM))
+        val both = note(labels = setOf(NoteLabels.SURVEYOR, NoteLabels.TELEMAPPER))
+        assertFalse(NotePingPolicy.mayPing(tele, now))
+        assertTrue(NotePingPolicy.mayPing(tele, now, setOf(NoteLabels.TELEMAPPER)))
+        assertTrue(NotePingPolicy.mayPing(josm, now, setOf(NoteLabels.JOSM, NoteLabels.SURVEYOR)))
+        assertFalse(NotePingPolicy.mayPing(josm, now, setOf(NoteLabels.TELEMAPPER)))
+        // A note in several classes pings when any of them is ticked.
+        assertTrue(NotePingPolicy.mayPing(both, now, setOf(NoteLabels.TELEMAPPER)))
+        assertTrue(NotePingPolicy.mayPing(both, now, setOf(NoteLabels.SURVEYOR)))
+        // Nothing ticked: no note pings.
+        assertFalse(NotePingPolicy.mayPing(note(), now, emptySet()))
+    }
+
+    @Test
+    fun `unclassified is its own tick`() {
+        val plain = note(labels = setOf(NoteLabels.ADDRESS))
+        assertFalse(NotePingPolicy.mayPing(plain, now))
+        assertFalse(NotePingPolicy.mayPing(plain, now, NoteLabels.AUDIENCES.toSet()))
+        assertTrue(NotePingPolicy.mayPing(plain, now, setOf(PingSettings.UNCLASSIFIED)))
+        // Ticking "unclassified" does not let a classified note through.
+        assertFalse(NotePingPolicy.mayPing(note(labels = setOf(NoteLabels.JOSM)), now, setOf(PingSettings.UNCLASSIFIED)))
+    }
+
+    @Test
+    fun `stale and scheduled rules are not settings`() {
+        val stale = note(labels = setOf(NoteLabels.TELEMAPPER, NoteLabels.STALE))
+        assertFalse(NotePingPolicy.mayPing(stale, now, PingSettings.ALL_CLASSES.toSet()))
+        val future = note(labels = setOf(NoteLabels.JOSM), surveyAfter = Date(now.time + 3600_000L))
+        assertFalse(NotePingPolicy.mayPing(future, now, PingSettings.ALL_CLASSES.toSet()))
+    }
+
+    @Test
+    fun `mute switches gate their kind and nothing else`() {
+        val notePoi = Poi(id = OsmNote.poiIdFor(1), name = "Note", latitude = 0.0, longitude = 0.0, source = "osm_notes")
+        val waypoint = Poi(id = "w", name = "Waypoint", latitude = 0.0, longitude = 0.0, source = "gpx_import")
+        val muteNotes = PingSettings(muteNotes = true)
+        val muteFixmes = PingSettings(muteFixmes = true)
+
+        assertFalse(NotePingPolicy.mayPing(notePoi, note(), now, muteNotes))
+        assertTrue(NotePingPolicy.mayPing(fixme(), null, now, muteNotes))
+        assertTrue(NotePingPolicy.mayPing(waypoint, null, now, muteNotes))
+        // A note POI without its note row (pre-v4 data) is still a note.
+        assertFalse(NotePingPolicy.mayPing(notePoi, null, now, muteNotes))
+
+        assertFalse(NotePingPolicy.mayPing(fixme(), null, now, muteFixmes))
+        assertTrue(NotePingPolicy.mayPing(notePoi, note(), now, muteFixmes))
+        assertTrue(NotePingPolicy.mayPing(waypoint, null, now, muteFixmes))
+    }
+
+    @Test
+    fun `settings carry the class set and the fixme age`() {
+        val notePoi = Poi(id = OsmNote.poiIdFor(1), name = "Note", latitude = 0.0, longitude = 0.0, source = "osm_notes")
+        val settings = PingSettings(classes = setOf(NoteLabels.JOSM), fixmeMaxAge = FixmeMaxAge.ONE_YEAR)
+        assertTrue(NotePingPolicy.mayPing(notePoi, note(labels = setOf(NoteLabels.JOSM)), now, settings))
+        assertFalse(NotePingPolicy.mayPing(notePoi, note(), now, settings))
+        val old = fixme(lastEditedAt = Date(now.time - 400L * 24 * 3600 * 1000))
+        assertFalse(NotePingPolicy.mayPing(old, null, now, settings))
+        assertTrue(NotePingPolicy.mayPing(fixme(), null, now, settings))
+    }
+
     @Test
     fun `waypoints and notes go through the poi overload unchanged`() {
         val waypoint = Poi(id = "w", name = "Waypoint", latitude = 0.0, longitude = 0.0, source = "gpx_import")

@@ -22,8 +22,10 @@ object PoiManager {
                 ownDisplayName = {
                     (OsmAuthManager.get(appContext).state.value as? OsmAuthState.LoggedIn)?.displayName
                 },
-                // Read per emission, so a change in the Notes tab reaches the ping gate without a restart.
-                fixmeMaxAge = { prefs.fixmeMaxAge }
+                // Read per emission, and the tick re-emits on every settings write (item 13), so
+                // a change in Settings or the Notes tab reaches the ping gate at once.
+                pingSettings = { prefs.pingSettings },
+                settingsChanged = PreferencesManager.loopSettingsTick
             )
         }
         return repository!!

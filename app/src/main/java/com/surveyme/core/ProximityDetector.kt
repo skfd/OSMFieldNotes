@@ -21,22 +21,31 @@ class ProximityDetector {
         return results[0]
     }
 
+    /**
+     * The radius a POI pings at: the item 13 setting for notes and fixmes, the row's own
+     * [Poi.notificationRadius] for imported waypoints, which carry one per priority.
+     */
+    fun radiusFor(poi: Poi, pingRadiusMeters: Int): Int =
+        if (poi.isNote || poi.isFixme) pingRadiusMeters else poi.notificationRadius
+
     fun checkProximity(
         currentLat: Double,
         currentLon: Double,
         pois: List<Poi>,
+        pingRadiusMeters: Int = PreferencesManager.DEFAULT_PING_RADIUS_METERS,
         onProximityDetected: (Poi, Float) -> Unit
     ) {
         val currentTime = System.currentTimeMillis()
-        Timber.d("Checking proximity for ${pois.size} POIs at location: $currentLat, $currentLon")
+        Timber.d("Checking proximity for ${pois.size} POIs at location: $currentLat, $currentLon (ping radius ${pingRadiusMeters}m)")
 
         pois.forEach { poi ->
             val distance = calculateDistance(currentLat, currentLon, poi.latitude, poi.longitude)
-            Timber.v("Distance to ${poi.name}: ${distance}m (radius: ${poi.notificationRadius}m)")
+            val radius = radiusFor(poi, pingRadiusMeters)
+            Timber.v("Distance to ${poi.name}: ${distance}m (radius: ${radius}m)")
 
             // Check if within notification radius
-            if (distance <= poi.notificationRadius) {
-                Timber.d("${poi.name} is within radius (${distance}m <= ${poi.notificationRadius}m)")
+            if (distance <= radius) {
+                Timber.d("${poi.name} is within radius (${distance}m <= ${radius}m)")
 
                 val lastNotified = lastNotificationTimes[poi.id] ?: 0L
                 val timeSinceLastNotification = currentTime - lastNotified

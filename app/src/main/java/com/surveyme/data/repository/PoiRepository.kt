@@ -8,6 +8,7 @@ import com.surveyme.core.FixmeMaxAge
 import com.surveyme.core.NoteClassifier
 import com.surveyme.core.NoteLabels
 import com.surveyme.core.NotePingPolicy
+import com.surveyme.core.PingSettings
 import com.surveyme.data.FetchedNote
 import com.surveyme.data.OsmNotesService
 import com.surveyme.data.OverpassService
@@ -24,6 +25,8 @@ import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -35,14 +38,17 @@ import java.util.Date
 /**
  * [ownDisplayName] answers the logged-in OSM user's name (null when logged out) so the
  * classifier can label the user's own notes; it is a function because login changes at run time.
- * [fixmeMaxAge] answers the fixme age setting the ping gate applies (item 12), read the same way.
+ * [pingSettings] answers the ping gate's settings (items 12 and 13), read the same way, and
+ * [settingsChanged] emits whenever they were written so the ping flow re-evaluates without a
+ * database change.
  */
 class PoiRepository(
     private val database: SurveyMeDatabase,
     private val context: Context,
     private val ownDisplayName: () -> String? = { null },
     private val classifier: NoteClassifier = NoteClassifier(),
-    private val fixmeMaxAge: () -> FixmeMaxAge = { FixmeMaxAge.ANY }
+    private val pingSettings: () -> PingSettings = { PingSettings.DEFAULT },
+    private val settingsChanged: Flow<Int> = flowOf(0)
 ) {
     private val poiDao = database.poiDao()
     private val noteDao = database.noteDao()
@@ -67,15 +73,34 @@ class PoiRepository(
     /**
      * What proximity may ping: waypoints as before, fixmes that are not dismissed, not on a
      * relation and within the fixme age setting (item 12), and notes that pass
-     * [NotePingPolicy] (open, surveyor-class, not stale, past their `#surveyafter` date). The
-     * clock and the age setting are read when the flow emits, so a note crossing its date or a
-     * changed setting is picked up on the next database change (a refetch while tracking, at
-     * the latest 15 min).
+     * [NotePingPolicy] (open, of a ticked class, not stale, past their `#surveyafter` date),
+     * all under the mute switches (item 13). The clock and the settings are read when the flow
+     * emits: on a database change (a refetch while tracking, at the latest 15 min) or on a
+     * settings write, so a note crossing its date waits for the former and a changed setting
+     * is felt at once.
      */
-    fun getPingablePois(): Flow<List<Poi>> = poiDao.getPingableCandidates().map { rows ->
-        val now = Date()
-        val maxAge = fixmeMaxAge()
-        rows.filter { NotePingPolicy.mayPing(it.poi, it.note, now, maxAge) }.map { it.poi }
+    fun getPingablePois(): Flow<List<Poi>> =
+        combine(poiDao.getPingableCandidates(), settingsChanged) { rows, _ ->
+            val now = Date()
+            val settings = pingSettings()
+            rows.filter { NotePingPolicy.mayPing(it.poi, it.note, now, settings) }.map { it.poi }
+        }
+
+    /**
+     * Rows the user muted (item 13): the notification's "Mute this one" on a note or fixme, or
+     * "Dismiss for now" / a swipe on a fixme. Placeholders for queued creates are muted by
+     * design (they must not ping their author) and are left out.
+     */
+    fun observeMutedItems(): Flow<List<PoiWithNote>> = poiDao.getMutedWithNote().map { rows ->
+        rows.filter { it.note?.isPending != true }
+    }
+
+    /** Unmute every row [observeMutedItems] lists, in one transaction. Returns how many. */
+    suspend fun unmuteAll(): Int = database.withTransaction {
+        val ids = poiDao.getMutedWithNoteOnce().filter { it.note?.isPending != true }.map { it.poi.id }
+        ids.chunked(500).forEach { poiDao.setMuted(it, false) }
+        Timber.d("Unmuted ${ids.size} POIs")
+        ids.size
     }
 
     suspend fun getNoteByPoiId(poiId: String): OsmNote? = noteDao.getByPoiId(poiId)

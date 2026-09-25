@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.18 (2026-09-25)
+
+**Roadmap item 13**: "build it as far as you can" (settings for the loop)
+Settings gets a "Pings and fetching" card of plain Material widgets bound to `PreferencesManager`: fetch radius (1 / 2 / 3 / 5 km, default 2; `NearbyFetcher.fetch` defaults to it, the expiry uses the same value, the refetch trigger stays "moved more than half the radius" and a changed radius is its own refetch reason), ping radius (25 / 50 / 100 / 200 m, default 50, applied by `ProximityDetector` to notes and fixmes while imported waypoints keep their own), "Notes that ping" checkboxes (Surveyor on, Telemapper / JOSM / Unclassified off; `NotePingPolicy` now takes the class set through a `PingSettings` value, with stale and future `#surveyafter` still never pinging), Mute notes / Mute fixmes master switches that gate the ping flow only, quiet hours (switch plus 24-hour `MaterialTimePicker`s, default 22:00 to 07:00, pure `QuietHours` window with a wrap past midnight; the service skips the detector inside the window so nothing is marked notified, and fetches continue), and the item 12 fixme age as a third door to the same pref. Every loop write bumps a process-wide `PreferencesManager.loopSettingsTick` that the repository's ping flow and the Notes tab combine with, so a change is felt without a database write or a restart. A "Muted items (N)" row opens a new list of every `isMuted` note and fixme (pending-create placeholders excluded, they are muted by design) with kind, first line, distance, an Unmute button with Undo, Unmute all, and a tap into the details sheet. Unit tests cover the quiet-hours window (incl. the wrap and equal bounds) and the class-set and mute gates. No schema change. Nothing here has run on a device yet.
+
 ## Version 1.2.17 (2026-09-25)
 
 **Roadmap item 12**: "build it as far as you can" (fixme list quality)

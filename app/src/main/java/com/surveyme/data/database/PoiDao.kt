@@ -46,6 +46,18 @@ interface PoiDao {
     )
     fun getPingableCandidates(): Flow<List<PoiWithNote>>
 
+    /** Rows the user muted (item 13's list), with their note row; newest first so a fresh mute is on top. */
+    @Transaction
+    @Query("SELECT * FROM pois WHERE isActive = 1 AND isMuted = 1 ORDER BY createdAt DESC")
+    fun getMutedWithNote(): Flow<List<PoiWithNote>>
+
+    @Transaction
+    @Query("SELECT * FROM pois WHERE isActive = 1 AND isMuted = 1")
+    suspend fun getMutedWithNoteOnce(): List<PoiWithNote>
+
+    @Query("UPDATE pois SET isMuted = :muted WHERE id IN (:poiIds)")
+    suspend fun setMuted(poiIds: List<String>, muted: Boolean)
+
     @Query("SELECT * FROM pois WHERE id = :id LIMIT 1")
     suspend fun getPoiById(id: String): Poi?
 

@@ -9,7 +9,7 @@
         android:title="@string/navigation_triage"
         app:showAsAction="ifRoom|withText" />
 
-    <!-- Item 12: how old a fixme may be and still be listed or ping. Item 13 moves it to Settings. -->
+    <!-- Item 12: how old a fixme may be and still be listed or ping. The same pref as the Settings row (item 13). -->
     <item
         android:id="@+id/action_fixme_age"
         android:title="Fixme age"

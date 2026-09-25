@@ -62,4 +62,11 @@
         android:label="@string/navigation_evidence"
         tools:layout="@layout/fragment_evidence_review" />
 
+    <!-- Item 13: the muted-items list, from the Settings row. Not top-level: Up arrow. -->
+    <fragment
+        android:id="@+id/mutedItemsFragment"
+        android:name="com.surveyme.presentation.muted.MutedItemsFragment"
+        android:label="@string/navigation_muted"
+        tools:layout="@layout/fragment_muted_items" />
+
 </navigation>

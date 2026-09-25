@@ -109,6 +109,43 @@
     <string name="map_style_default">Standard</string>
     <string name="app_version">Version</string>
 
+    <!-- The loop (item 13) -->
+    <string name="settings_loop">Pings and fetching</string>
+    <string name="settings_fetch_radius">Fetch radius</string>
+    <string name="settings_fetch_radius_hint">Notes and fixmes are fetched this far around you; refetched when you move half of it.</string>
+    <string name="settings_ping_radius">Ping radius</string>
+    <string name="settings_ping_radius_hint">How close a note or fixme must be to ping.</string>
+    <string name="settings_ping_classes">Notes that ping</string>
+    <string name="settings_ping_classes_hint">Never stale ones, never a #surveyafter note before its date.</string>
+    <string name="settings_class_surveyor">Surveyor</string>
+    <string name="settings_class_telemapper">Telemapper</string>
+    <string name="settings_class_josm">JOSM</string>
+    <string name="settings_class_unclassified">Unclassified</string>
+    <string name="settings_mute_notes">Mute notes</string>
+    <string name="settings_mute_fixmes">Mute fixmes</string>
+    <string name="settings_mute_hint">Mutes pings only; lists and the map are unaffected.</string>
+    <string name="settings_quiet_hours">Quiet hours</string>
+    <string name="settings_quiet_hours_hint">No pings in the window; fetching carries on.</string>
+    <string name="settings_quiet_from">From</string>
+    <string name="settings_quiet_to">To</string>
+    <string name="settings_fixme_age">Fixme age</string>
+    <string name="settings_fixme_age_hint">Older fixmes are neither listed nor pinged. Also in the Notes tab menu.</string>
+    <string name="settings_muted_items">Muted items (%1$d)</string>
+    <string name="settings_muted_items_hint">Notes and fixmes muted from a ping or dismissed for now.</string>
+    <string name="radius_km">%1$d km</string>
+    <string name="radius_m">%1$d m</string>
+
+    <!-- Muted items (item 13) -->
+    <string name="navigation_muted">Muted items</string>
+    <string name="muted_header">%1$d muted (%2$d notes, %3$d fixmes)</string>
+    <string name="muted_empty">Nothing is muted. \"Mute this one\" on a ping, or \"Dismiss for now\" on a fixme, puts an item here.</string>
+    <string name="muted_unmute">Unmute</string>
+    <string name="muted_unmute_all">Unmute all</string>
+    <string name="muted_unmute_all_message">Every muted note and fixme may ping again.</string>
+    <string name="muted_unmuted_one">Unmuted</string>
+    <string name="muted_unmuted_many">Unmuted %1$d items</string>
+    <string name="undo">Undo</string>
+
     <!-- OSM account -->
     <string name="settings_osm_account">OpenStreetMap account</string>
     <string name="osm_logged_out">Not logged in</string>

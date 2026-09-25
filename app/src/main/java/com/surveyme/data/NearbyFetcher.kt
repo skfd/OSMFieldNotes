@@ -85,13 +85,14 @@ class NearbyFetcher(
     }
 
     /**
-     * Fetch both sources around ([lat], [lon]) if their gates allow. Never throws.
+     * Fetch both sources around ([lat], [lon]) if their gates allow. Never throws. The radius
+     * is the item 13 setting unless the caller says otherwise; the expiry uses the same value.
      */
     suspend fun fetch(
         lat: Double,
         lon: Double,
         trigger: Trigger,
-        radiusMeters: Int = Constants.FETCH_RADIUS_METERS
+        radiusMeters: Int = prefs.fetchRadiusMeters
     ): Report {
         if (isNoPosition(lat, lon)) {
             // The map's default centre before any position was ever saved; fetching there would
@@ -203,9 +204,16 @@ class NearbyFetcher(
     private fun isNoPosition(lat: Double, lon: Double) =
         lat == Constants.DEFAULT_MAP_CENTER_LAT && lon == Constants.DEFAULT_MAP_CENTER_LON
 
-    /** Why this source wants a refetch at the point, or null if the last fetch still covers it. */
+    /**
+     * Why this source wants a refetch at the point, or null if the last fetch still covers it.
+     * The movement threshold is half the radius the last fetch was made with; a changed radius
+     * setting is its own reason, or growing 2 km to 5 km would do nothing until the walker had
+     * moved 1 km or 15 min had passed.
+     */
     private fun movedOrStale(source: String, lat: Double, lon: Double, now: Long): String? {
         val last = prefs.getFetchCentre(source) ?: return "never fetched"
+        val wanted = prefs.fetchRadiusMeters
+        if (last.radiusMeters != wanted) return "radius changed ${last.radiusMeters}m to ${wanted}m"
         val results = FloatArray(1)
         Location.distanceBetween(last.latitude, last.longitude, lat, lon, results)
         val moved = results[0].toInt()
