@@ -51,7 +51,7 @@ Each item is one session-sized piece of work. Ticks go here; do not renumber.
 10. [ ] **Fixme hand-off.** From fixme details: open the element in an external editor. Start with an osm.org element URL and a `geo:` intent; then editor-specific intents (StreetComplete, Vespucci) once verified on a device. Keep the OSM element type and id as structured fields; today they only live inside the POI id string.
 11. [ ] **Evidence capture.** Photo or text pinned to a note or fixme, stored locally, listed in a "to review" view. No upload; this is for the desk session later.
 12. [ ] **Fixme list quality.** Show the `fixme` text and the element's main tags in the list; filter out fixmes on relations or those older than a chosen age; dismiss-for-now. Reuse the item 8 label machinery for fixme text ("continue", "resurvey", "check name").
-13. [ ] **Settings for the loop.** Fetch radius, ping radius, which classes ping, mute notes, mute fixmes, quiet hours.
+13. [ ] **Settings for the loop.** Fetch radius, ping radius, which classes ping, mute notes, mute fixmes, quiet hours. Also a way to see and unmute individual items muted from a ping (the `isMuted` flag from item 1 has no UI yet).
 14. [ ] **Battery pass.** Location update interval adapts to speed; fetches batch behind the location cadence; measure a two-hour walk.
 15. [ ] **Rename.** App name, package label and docs from "Survey Me" to FixMeAwesome (package id stays `com.surveyme` unless a release is far off enough to change it).
 16. [ ] **Release prep.** Adaptive icon, privacy policy (location, OSM account), ProGuard rules, signed build, listing text and screenshots.

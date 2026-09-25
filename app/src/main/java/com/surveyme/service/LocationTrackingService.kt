@@ -342,6 +342,9 @@ class LocationTrackingService : Service() {
                 PoiManager.getRepository(this@LocationTrackingService).setMuted(poiId, true)
             } catch (e: Exception) {
                 Timber.e(e, "Failed to mute POI $poiId")
+            } finally {
+                // Mute tapped after tracking stopped revived the service; do not linger.
+                if (!isTracking) stopSelf()
             }
         }
     }
@@ -379,8 +382,11 @@ class LocationTrackingService : Service() {
             "osm_fixme" -> "Fixme nearby"
             else -> "Nearby: ${poi.name}"
         }
-        val body = (poi.notes ?: poi.description ?: poi.name).trim()
-        val firstLine = body.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: poi.name
+        // description holds the note's first comment (or the fixme text); notes holds the
+        // full thread with "[user at date]:" headers, which is only useful expanded.
+        val summary = (poi.description ?: poi.name).trim()
+        val firstLine = summary.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: poi.name
+        val body = (poi.notes ?: summary).trim()
         val meters = distance.toInt()
 
         val notification = NotificationCompat.Builder(this, POI_NOTIFICATION_CHANNEL_ID)
