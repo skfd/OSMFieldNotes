@@ -5,6 +5,12 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
 import android.os.Looper
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import androidx.core.view.MenuProvider
+import androidx.navigation.fragment.findNavController
+import com.surveyme.R
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -58,6 +64,7 @@ class NotesFragment : Fragment() {
         
         setupRecyclerView()
         setupFilterChips()
+        setupMenu()
         observeViewModel()
         setupLocationUpdates()
         
@@ -76,6 +83,21 @@ class NotesFragment : Fragment() {
             description = note.third
         )
         dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
+    }
+
+    /** Item 9: a "Triage" action in the toolbar while this tab is showing. */
+    private fun setupMenu() {
+        requireActivity().addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.menu_notes, menu)
+            }
+
+            override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                if (menuItem.itemId != R.id.action_triage) return false
+                findNavController().navigate(R.id.triageFragment)
+                return true
+            }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
     }
 
     private fun setupRecyclerView() {

@@ -34,6 +34,31 @@
     <string name="create_note_anonymous_confirm">Post anonymously</string>
     <string name="create_note_log_in">Log in first</string>
 
+    <!-- Morning triage (item 9) -->
+    <string name="navigation_triage">Triage</string>
+    <string name="triage_card_title">Morning triage</string>
+    <string name="triage_card_new">%1$d new notes since the last triage</string>
+    <string name="triage_card_never">%1$d open notes, never triaged</string>
+    <string name="triage_card_hint">Confirm who each new note is for: one tap posts the tag as a comment.</string>
+    <string name="triage_open">Triage</string>
+    <string name="triage_header_new">%1$d new since %2$s</string>
+    <string name="triage_header_never">Never triaged: every open note</string>
+    <string name="triage_header_all">%1$d open notes</string>
+    <string name="triage_show_all">Show all open notes</string>
+    <string name="triage_empty_new">Nothing new since the last triage.</string>
+    <string name="triage_empty_all">No open notes stored. Fetch some from the Map or Settings.</string>
+    <string name="triage_done">Done</string>
+    <string name="triage_skip">Skip</string>
+    <string name="triage_change">Change</string>
+    <string name="triage_tagged">Tagged %1$s</string>
+    <string name="triage_pending">Pending: %1$s</string>
+    <string name="triage_queued">Queued %1$s on note %2$d</string>
+    <string name="triage_login_title">Log in first</string>
+    <string name="triage_login_message">Tags are posted as comments with your OpenStreetMap account. Log in from Settings, then come back.</string>
+    <string name="triage_login_open_settings">Open Settings</string>
+    <string name="triage_surveyafter_title">Survey after</string>
+    <string name="triage_anonymous">Anonymous</string>
+
     <!-- Tracks -->
     <string name="no_tracks_yet">No tracks yet</string>
     <string name="start_recording_hint">Start recording to see your tracks here</string>

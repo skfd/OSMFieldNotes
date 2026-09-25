@@ -48,4 +48,11 @@
             android:defaultValue="" />
     </fragment>
 
+    <!-- Item 9: not a top-level destination, so the toolbar shows an Up arrow. -->
+    <fragment
+        android:id="@+id/triageFragment"
+        android:name="com.surveyme.presentation.triage.TriageFragment"
+        android:label="@string/navigation_triage"
+        tools:layout="@layout/fragment_triage" />
+
 </navigation>

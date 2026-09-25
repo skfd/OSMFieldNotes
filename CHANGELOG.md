@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.14 (2026-09-25)
+
+**Roadmap item 9**: "build it as far as you can" (morning triage)
+A `Triage` screen, reached from a "Morning triage: N new notes" card on Home and a toolbar action on the Notes tab, lists the stored open notes created after the last triage stamp (`lastTriageAt` in prefs, everything before the first Done), newest first, each with its first line, author and date, the item 8 label chips, and assist chips `#surveyme`, `#surveyafter…` (Material date picker, future dates only, posts `#surveyafter YYYY-MM-DD`), `#armchair` and `#josm`, the heuristic guess filled in its audience colour so the tap is a confirmation; a tap needs a login (otherwise a dialog points to Settings and nothing is posted) and queues the tag as a comment through item 6's offline queue, after which the row shows "Pending: #tag" until osm.org's answer reclassifies the note (verified: `storeNoteFromServer` runs the classifier). Notes already carrying a strict tag show "Tagged #x" with a Change chip; Skip or a swipe hides a row for the session; a "Show all open notes" switch lifts the stamp filter; Done, or the first tag posted, stamps the time the screen was opened so notes fetched later with a newer date come up next time. The filter and guess live in pure `NoteTriage` (`core/`) with unit tests; no schema change (one new `note_actions` query). Untested against osm.org like items 5 to 7.
+
 ## Version 1.2.13 (2026-09-25)
 
 **Roadmap item 8**: "build it as far as you can" (note classification)

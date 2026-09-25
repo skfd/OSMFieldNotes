@@ -233,6 +233,9 @@ class PoiRepository(
     /** The comment / close / reopen requests of one note still waiting to be posted, oldest first. */
     fun observePendingActions(noteId: Long): Flow<List<NoteActionRequest>> = noteActionDao.observeForNote(noteId)
 
+    /** Every queued request, oldest first; the triage list (item 9) marks notes with one on the way. */
+    fun observeAllPendingActions(): Flow<List<NoteActionRequest>> = noteActionDao.observeAll()
+
     fun noteActionDao(): NoteActionDao = noteActionDao
 
     /**

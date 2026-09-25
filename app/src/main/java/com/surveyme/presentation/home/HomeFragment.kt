@@ -12,13 +12,22 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import com.surveyme.R
+import com.surveyme.core.NoteTriage
+import com.surveyme.core.PreferencesManager
+import com.surveyme.data.OsmNotesService
+import com.surveyme.data.PoiManager
 import com.surveyme.core.LastKnownLocation
 import com.surveyme.core.PermissionManager
 import com.surveyme.presentation.notes.CreateNoteDialogFragment
 import com.surveyme.databinding.FragmentHomeBinding
 import com.surveyme.presentation.base.BaseFragment
 import com.surveyme.service.LocationTrackingService
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class HomeFragment : BaseFragment<FragmentHomeBinding>() {
@@ -51,6 +60,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
 
         setupTrackingControls()
         setupCreateNote()
+        setupTriage()
         checkAndDisplayCrash()
         updateTrackingUI()
         checkNotificationPermission()
@@ -113,6 +123,31 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
                 return@setOnClickListener
             }
             CreateNoteDialogFragment.show(childFragmentManager, here.latitude, here.longitude)
+        }
+    }
+
+    /**
+     * Item 9: how many open notes are new since the last triage, with the same predicate the
+     * triage screen uses; the prefs stamp is re-read on every emission so a Done and a return
+     * here agree.
+     */
+    private fun setupTriage() {
+        binding.buttonTriage.setOnClickListener { findNavController().navigate(R.id.triageFragment) }
+        val prefs = PreferencesManager(requireContext())
+        val repository = PoiManager.getRepository(requireContext())
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.getNotesAndFixmesWithNote().collect { rows ->
+                    val notes = rows.filter { it.poi.source == OsmNotesService.SOURCE_NOTES }.mapNotNull { it.note }
+                    val stamp = prefs.lastTriageAt
+                    val count = NoteTriage.select(notes, stamp).size
+                    binding.textTriageCount.text = if (stamp == NoteTriage.NEVER) {
+                        getString(R.string.triage_card_never, count)
+                    } else {
+                        getString(R.string.triage_card_new, count)
+                    }
+                }
+            }
         }
     }
 

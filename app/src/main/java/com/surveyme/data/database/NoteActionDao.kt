@@ -24,6 +24,10 @@ interface NoteActionDao {
     @Query("SELECT * FROM note_actions WHERE noteId = :noteId ORDER BY id")
     fun observeForNote(noteId: Long): Flow<List<NoteActionRequest>>
 
+    /** Every queued row, oldest first; the triage list marks notes with a comment on the way. */
+    @Query("SELECT * FROM note_actions ORDER BY id")
+    fun observeAll(): Flow<List<NoteActionRequest>>
+
     @Query("SELECT COUNT(*) FROM note_actions")
     suspend fun count(): Int
 

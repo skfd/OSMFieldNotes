@@ -25,6 +25,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_FETCH_PREFIX = "fetch_centre_"
         private const val KEY_CLASSIFIER_VERSION = "classifier_version"
         private const val KEY_NOTES_AUDIENCE_FILTER = "notes_audience_filter"
+        private const val KEY_LAST_TRIAGE_AT = "last_triage_at"
 
         /** The Notes tab filter value that shows everything; the others are [NoteLabels.AUDIENCES]. */
         const val AUDIENCE_FILTER_ALL = "all"
@@ -45,6 +46,16 @@ class PreferencesManager(context: Context) {
         get() = prefs.getString(KEY_NOTES_AUDIENCE_FILTER, AUDIENCE_FILTER_ALL) ?: AUDIENCE_FILTER_ALL
         set(value) {
             prefs.edit().putString(KEY_NOTES_AUDIENCE_FILTER, value).apply()
+        }
+
+    /**
+     * When the triage screen was last opened and then acted on or closed with Done (item 9), in
+     * epoch millis; [NoteTriage.NEVER] (0) before the first time. Notes created after this are "new".
+     */
+    var lastTriageAt: Long
+        get() = prefs.getLong(KEY_LAST_TRIAGE_AT, NoteTriage.NEVER)
+        set(value) {
+            prefs.edit().putLong(KEY_LAST_TRIAGE_AT, value).apply()
         }
 
     /** Where and when a source was last fetched successfully. */
