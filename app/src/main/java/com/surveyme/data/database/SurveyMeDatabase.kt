@@ -7,13 +7,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.surveyme.data.model.Evidence
 import com.surveyme.data.model.NoteActionRequest
 import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 
 @Database(
-    entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class],
-    version = 7,
+    entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class, Evidence::class],
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -23,6 +24,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
     abstract fun noteDao(): NoteDao
     abstract fun noteActionDao(): NoteActionDao
+    abstract fun evidenceDao(): EvidenceDao
 
     companion object {
         @Volatile
@@ -104,6 +106,21 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v8: photos and text pinned to notes and fixmes (item 11). Create-only, and on purpose
+         * without a foreign key to `pois`: evidence outlives the POI row's expiry and carries
+         * its own snapshot of the item. DDL copied from the exported 8.json.
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `evidence` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `poiId` TEXT NOT NULL, `noteId` INTEGER, `kind` TEXT NOT NULL, `text` TEXT, `photoPath` TEXT, `lat` REAL, `lon` REAL, `createdAt` INTEGER NOT NULL, `reviewed` INTEGER NOT NULL, `itemTitle` TEXT NOT NULL, `itemSummary` TEXT NOT NULL, `itemSource` TEXT NOT NULL, `itemLat` REAL NOT NULL, `itemLon` REAL NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_evidence_poiId` ON `evidence` (`poiId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_evidence_reviewed` ON `evidence` (`reviewed`)")
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -111,7 +128,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance

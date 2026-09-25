@@ -68,6 +68,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Evidence photos (item 11) live under files/evidence/; the camera writes into them
+             and viewers / share targets read them through this provider, never via file:// -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

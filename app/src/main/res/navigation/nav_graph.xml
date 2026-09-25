@@ -55,4 +55,11 @@
         android:label="@string/navigation_triage"
         tools:layout="@layout/fragment_triage" />
 
+    <!-- Item 11: the evidence review list, from the Home card. Not top-level: Up arrow. -->
+    <fragment
+        android:id="@+id/evidenceFragment"
+        android:name="com.surveyme.presentation.evidence.EvidenceReviewFragment"
+        android:label="@string/navigation_evidence"
+        tools:layout="@layout/fragment_evidence_review" />
+
 </navigation>

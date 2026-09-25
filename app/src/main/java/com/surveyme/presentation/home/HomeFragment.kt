@@ -61,6 +61,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
         setupTrackingControls()
         setupCreateNote()
         setupTriage()
+        setupEvidence()
         checkAndDisplayCrash()
         updateTrackingUI()
         checkNotificationPermission()
@@ -145,6 +146,23 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
                         getString(R.string.triage_card_never, count)
                     } else {
                         getString(R.string.triage_card_new, count)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Item 11: how many pieces of evidence wait for the desk, straight from the table. */
+    private fun setupEvidence() {
+        binding.buttonEvidence.setOnClickListener { findNavController().navigate(R.id.evidenceFragment) }
+        val repository = PoiManager.getRepository(requireContext())
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                repository.observeUnreviewedEvidenceCount().collect { count ->
+                    binding.textEvidenceCount.text = if (count == 0) {
+                        getString(R.string.evidence_card_none)
+                    } else {
+                        getString(R.string.evidence_card_count, count)
                     }
                 }
             }

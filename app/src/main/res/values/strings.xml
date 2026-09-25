@@ -59,6 +59,42 @@
     <string name="triage_surveyafter_title">Survey after</string>
     <string name="triage_anonymous">Anonymous</string>
 
+    <!-- Evidence capture (item 11) -->
+    <string name="navigation_evidence">To review</string>
+    <string name="evidence_card_title">Evidence</string>
+    <string name="evidence_card_count">%1$d to review</string>
+    <string name="evidence_card_none">Nothing to review</string>
+    <string name="evidence_card_hint">Photos and text you pinned to notes and fixmes in the field, for the desk session.</string>
+    <string name="evidence_open">Review</string>
+    <string name="evidence_section">Evidence (%1$d)</string>
+    <string name="evidence_add_photo">Add photo</string>
+    <string name="evidence_pick_photo">Pick photo</string>
+    <string name="evidence_add_text">Add text</string>
+    <string name="evidence_text_title">Add text evidence</string>
+    <string name="evidence_text_hint">What you saw</string>
+    <string name="evidence_text_save">Pin</string>
+    <string name="evidence_saved_photo">Photo pinned</string>
+    <string name="evidence_saved_text">Text pinned</string>
+    <string name="evidence_no_camera">No camera app installed</string>
+    <string name="evidence_no_viewer">No app to show the photo</string>
+    <string name="evidence_open_photo">Open photo</string>
+    <string name="evidence_photo_failed">Photo was not saved</string>
+    <string name="evidence_header_unreviewed">%1$d to review</string>
+    <string name="evidence_header_all">%1$d pinned, %2$d to review</string>
+    <string name="evidence_show_reviewed">Show reviewed</string>
+    <string name="evidence_empty_unreviewed">Nothing to review. Pin a photo or text from a note or fixme.</string>
+    <string name="evidence_empty_all">No evidence pinned yet.</string>
+    <string name="evidence_action_open">Open item</string>
+    <string name="evidence_action_reviewed">Reviewed</string>
+    <string name="evidence_action_unreview">Not reviewed</string>
+    <string name="evidence_action_share">Share</string>
+    <string name="evidence_action_delete">Delete</string>
+    <string name="evidence_delete_title">Delete this evidence?</string>
+    <string name="evidence_delete_message">The photo or text is removed from this device. This cannot be undone.</string>
+    <string name="evidence_item_gone">The item is no longer stored; this is what it said.</string>
+    <string name="evidence_reviewed_label">Reviewed</string>
+    <string name="evidence_share_chooser">Share evidence</string>
+
     <!-- Tracks -->
     <string name="no_tracks_yet">No tracks yet</string>
     <string name="start_recording_hint">Start recording to see your tracks here</string>

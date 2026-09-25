@@ -12,6 +12,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -25,11 +27,15 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.surveyme.R
+import com.surveyme.core.EvidenceSnapshot
+import com.surveyme.core.LastKnownLocation
 import com.surveyme.core.OsmElementRef
+import com.surveyme.data.EvidenceStore
 import com.surveyme.data.NoteActionQueue
 import com.surveyme.data.OsmAuthManager
 import com.surveyme.data.OsmAuthState
 import com.surveyme.data.PoiManager
+import com.surveyme.data.model.Evidence
 import com.surveyme.data.model.NoteAction
 import com.surveyme.data.model.NoteActionKind
 import com.surveyme.data.model.NoteActionRequest
@@ -39,10 +45,16 @@ import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 import com.surveyme.databinding.DialogNoteActionBinding
 import com.surveyme.databinding.FragmentNoteDetailsBinding
+import com.surveyme.presentation.evidence.EvidenceIntents
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,6 +89,102 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
      */
     private var currentPoi: Poi? = null
 
+    /**
+     * What a capture is pinned to (item 11): the snapshot of the item as rendered, and once a
+     * capture starts, the walker's fix and the file the camera writes into. Kept in the saved
+     * state because the camera app routinely kills the caller; on restore the TakePicture
+     * callback still lands here and needs to know what the photo was for.
+     */
+    data class EvidenceTarget(
+        val poiId: String,
+        val noteId: Long?,
+        val title: String,
+        val summary: String,
+        val source: String,
+        val itemLat: Double,
+        val itemLon: Double,
+        val lat: Double? = null,
+        val lon: Double? = null,
+        val photoPath: String? = null
+    ) {
+        fun toBundle(): Bundle = Bundle().apply {
+            putString("poiId", poiId)
+            noteId?.let { putLong("noteId", it) }
+            putString("title", title)
+            putString("summary", summary)
+            putString("source", source)
+            putDouble("itemLat", itemLat)
+            putDouble("itemLon", itemLon)
+            lat?.let { putDouble("lat", it) }
+            lon?.let { putDouble("lon", it) }
+            putString("photoPath", photoPath)
+        }
+
+        companion object {
+            fun fromBundle(b: Bundle): EvidenceTarget? {
+                val poiId = b.getString("poiId") ?: return null
+                return EvidenceTarget(
+                    poiId = poiId,
+                    noteId = if (b.containsKey("noteId")) b.getLong("noteId") else null,
+                    title = b.getString("title").orEmpty(),
+                    summary = b.getString("summary").orEmpty(),
+                    source = b.getString("source").orEmpty(),
+                    itemLat = b.getDouble("itemLat"),
+                    itemLon = b.getDouble("itemLon"),
+                    lat = if (b.containsKey("lat")) b.getDouble("lat") else null,
+                    lon = if (b.containsKey("lon")) b.getDouble("lon") else null,
+                    photoPath = b.getString("photoPath")
+                )
+            }
+        }
+    }
+
+    /** The item as last rendered; null until the POI row is loaded. */
+    private var evidenceTarget: EvidenceTarget? = null
+
+    /** The capture in progress (camera or picker open), with its fix and file. */
+    private var pendingCapture: EvidenceTarget? = null
+
+    private val takePicture = registerForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val capture = pendingCapture ?: return@registerForActivityResult
+        pendingCapture = null
+        val path = capture.photoPath ?: return@registerForActivityResult
+        if (!saved || File(path).length() == 0L) {
+            EvidenceStore.deleteFile(path)
+            if (saved) Toast.makeText(context, R.string.evidence_photo_failed, Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
+        val appContext = context?.applicationContext ?: return@registerForActivityResult
+        saveEvidence(appContext, capture, Evidence.KIND_PHOTO, text = null, photoPath = path)
+    }
+
+    private val pickPhoto = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val capture = pendingCapture ?: return@registerForActivityResult
+        pendingCapture = null
+        if (uri == null) return@registerForActivityResult
+        val appContext = context?.applicationContext ?: return@registerForActivityResult
+        evidenceScope.launch {
+            val file = EvidenceStore.importPhoto(appContext) { appContext.contentResolver.openInputStream(uri) }
+            if (file == null) {
+                withContext(Dispatchers.Main) { Toast.makeText(appContext, R.string.evidence_photo_failed, Toast.LENGTH_SHORT).show() }
+            } else {
+                saveEvidence(appContext, capture, Evidence.KIND_PHOTO, text = null, photoPath = file.absolutePath)
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        savedInstanceState?.let {
+            pendingCapture = it.getBundle(STATE_PENDING_CAPTURE)?.let(EvidenceTarget::fromBundle)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        pendingCapture?.let { outState.putBundle(STATE_PENDING_CAPTURE, it.toBundle()) }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -109,6 +217,11 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
 
         binding.recyclerRows.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerRows.adapter = rowsAdapter
+        rowsAdapter.thumbnailScope = viewLifecycleOwner.lifecycleScope
+        rowsAdapter.onEvidenceClick = { EvidenceIntents.view(requireContext(), it) }
+        binding.chipAddPhoto.setOnClickListener { startCamera() }
+        binding.chipPickPhoto.setOnClickListener { startPicker() }
+        binding.chipAddText.setOnClickListener { promptTextEvidence() }
 
         // What we know before the database answers: the text the caller passed in.
         binding.textTitle.text = title
@@ -137,27 +250,61 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
                 currentPoi = poi
                 val pendingFlow = if (noteId != null) repository.observePendingActions(noteId) else flowOf(emptyList())
                 val postingFlow = NoteActionQueue.get(requireContext()).posting
-                // Note row, queue and in-flight set together: any of them changing re-renders.
+                val evidenceFlow = repository.observeEvidenceForPoi(poiId)
+                // Note row, queue, in-flight set and pinned evidence together: any of them
+                // changing re-renders.
                 viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    combine(repository.observeNoteByPoiId(poiId), pendingFlow, postingFlow) { note, pending, posting ->
-                        Triple(note, pending, noteId != null && noteId in posting)
-                    }.collect { (note, pending, inFlight) ->
-                        if (_binding != null) render(currentPoi ?: poi, note, pending, inFlight, distanceArg)
+                    combine(repository.observeNoteByPoiId(poiId), pendingFlow, postingFlow, evidenceFlow) { note, pending, posting, evidence ->
+                        RenderInput(note, pending, noteId != null && noteId in posting, evidence)
+                    }.collect { input ->
+                        if (_binding != null) render(currentPoi ?: poi, input.note, input.pending, input.inFlight, input.evidence, distanceArg)
                     }
                 }
             }
         }
     }
 
-    private fun render(poi: Poi, note: OsmNote?, pending: List<NoteActionRequest>, inFlight: Boolean, distanceArg: Float) {
+    private class RenderInput(
+        val note: OsmNote?,
+        val pending: List<NoteActionRequest>,
+        val inFlight: Boolean,
+        val evidence: List<Evidence>
+    )
+
+    private fun render(
+        poi: Poi,
+        note: OsmNote?,
+        pending: List<NoteActionRequest>,
+        inFlight: Boolean,
+        evidence: List<Evidence>,
+        distanceArg: Float
+    ) {
         binding.textTitle.text = poi.name
         showDistance(poi, distanceArg)
 
-        when {
+        val rows = when {
             note != null -> renderNote(note, pending, inFlight)
             poi.source == "osm_fixme" -> renderFixme(poi)
             else -> renderPlain(poi)
         }
+        // Item 11: what is pinned to this item, after the thread, plus the capture chips.
+        val evidenceRows = if (evidence.isEmpty()) emptyList() else
+            listOf(DetailRow.Header(getString(R.string.evidence_section, evidence.size))) + evidence.map { DetailRow.EvidenceItem(it) }
+        rowsAdapter.submit(rows + evidenceRows)
+        if (pending.isNotEmpty()) binding.recyclerRows.scrollToPosition(rows.size - 1)
+        evidenceTarget = EvidenceTarget(
+            poiId = poi.id,
+            noteId = note?.noteId,
+            title = poi.name,
+            summary = EvidenceSnapshot.summaryOf(
+                note?.openingText ?: poi.tags["fixme"] ?: poi.notes ?: poi.description
+            ),
+            source = poi.source,
+            itemLat = poi.latitude,
+            itemLon = poi.longitude
+        )
+        binding.textEvidenceTitle.text = getString(R.string.evidence_section, evidence.size)
+        binding.evidenceRow.visibility = View.VISIBLE
 
         // Item 10: a fixme hands its element off; a note hands off the first element its thread
         // links (no dismiss for a note: the hand-off is about the element, not the note).
@@ -173,7 +320,8 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         binding.buttonOpenOsm.visibility = if (osmUrl != null) View.VISIBLE else View.GONE
     }
 
-    private fun renderNote(note: OsmNote, pending: List<NoteActionRequest>, inFlight: Boolean) {
+    /** Header, labels and action row for a note; returns the thread rows for the caller to submit. */
+    private fun renderNote(note: OsmNote, pending: List<NoteActionRequest>, inFlight: Boolean): List<DetailRow> {
         setStatus(
             when {
                 note.isPending -> "PENDING"
@@ -201,14 +349,13 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
             .filter { it.text.isNotBlank() || it.action != NoteAction.COMMENTED }
             .map { DetailRow.Comment(it) } +
             pending.map { DetailRow.Comment(it.asComment(me), pending = true) }
-        rowsAdapter.submit(rows.ifEmpty { listOf(DetailRow.Text("No text.")) })
-        if (pending.isNotEmpty()) binding.recyclerRows.scrollToPosition(rows.size - 1)
 
         // Every label (item 8); the list row shows only the first few.
         LabelChips.bind(binding.chipLabels, note.labels)
 
         // Nothing can be posted to a note osm.org has not created yet.
         if (note.isPending) binding.actionRow.visibility = View.GONE else showActions(note, inFlight)
+        return rows.ifEmpty { listOf(DetailRow.Text("No text.")) }
     }
 
     /** The thread entry a queued action will turn into, attributed to the logged-in user. */
@@ -220,7 +367,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         text = text
     )
 
-    private fun renderFixme(poi: Poi) {
+    private fun renderFixme(poi: Poi): List<DetailRow> {
         dismissed = poi.isMuted
         setStatus(if (dismissed) "FIXME · DISMISSED" else "FIXME", highlighted = !dismissed)
         binding.textDates.text = buildString {
@@ -235,19 +382,115 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         poi.tags.entries
             .sortedWith(compareBy({ it.key != "fixme" }, { it.key }))
             .forEach { (key, value) -> rows += DetailRow.Tag(key, value) }
-        rowsAdapter.submit(rows)
         binding.chipLabels.visibility = View.GONE
         binding.actionRow.visibility = View.GONE
+        return rows
     }
 
     /** A note POI without an `osm_notes` row (pre-v4 data): the flattened text it carries. */
-    private fun renderPlain(poi: Poi) {
+    private fun renderPlain(poi: Poi): List<DetailRow> {
         setStatus("NOTE", highlighted = true)
         binding.textDates.text = "Created ${dateFormat.format(poi.createdAt)}"
         val text = poi.notes?.takeIf { it.isNotBlank() } ?: poi.description.orEmpty()
-        rowsAdapter.submit(listOf(DetailRow.Text(text.ifBlank { "No details available" })))
         binding.chipLabels.visibility = View.GONE
         binding.actionRow.visibility = View.GONE
+        return listOf(DetailRow.Text(text.ifBlank { "No details available" }))
+    }
+
+    // Evidence capture (item 11). Every capture snaps the walker's fix at the moment the
+    // camera, picker or text dialog opens; the row is written by [saveEvidence] on a
+    // process-wide scope so a sheet dismissed mid-way does not lose it.
+
+    private fun startCamera() {
+        val context = context ?: return
+        val target = evidenceTarget ?: return
+        val file = EvidenceStore.newPhotoFile(context)
+        pendingCapture = target.withFix(context).copy(photoPath = file.absolutePath)
+        runCatching { takePicture.launch(EvidenceStore.uriFor(context, file)) }
+            .onFailure {
+                Timber.w(it, "No camera app")
+                pendingCapture = null
+                EvidenceStore.deleteFile(file.absolutePath)
+                Toast.makeText(context, R.string.evidence_no_camera, Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun startPicker() {
+        val context = context ?: return
+        val target = evidenceTarget ?: return
+        pendingCapture = target.withFix(context)
+        runCatching { pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+            .onFailure {
+                Timber.w(it, "No picker")
+                pendingCapture = null
+                Toast.makeText(context, R.string.evidence_no_viewer, Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    private fun promptTextEvidence() {
+        val context = context ?: return
+        val target = evidenceTarget?.withFix(context) ?: return
+        val input = DialogNoteActionBinding.inflate(layoutInflater)
+        input.inputLayout.hint = getString(R.string.evidence_text_hint)
+        val dialog = MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.evidence_text_title)
+            .setView(input.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.evidence_text_save) { _, _ ->
+                val text = input.inputText.text?.toString().orEmpty().trim()
+                if (text.isNotEmpty()) saveEvidence(context.applicationContext, target, Evidence.KIND_TEXT, text = text, photoPath = null)
+            }
+            .create()
+        dialog.show()
+        val save = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+        save.isEnabled = false
+        input.inputText.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: android.text.Editable?) {
+                save.isEnabled = !s.isNullOrBlank()
+            }
+        })
+        input.inputText.requestFocus()
+    }
+
+    private fun EvidenceTarget.withFix(context: Context): EvidenceTarget {
+        val here = LastKnownLocation.get(context)
+        return copy(lat = here?.latitude, lon = here?.longitude)
+    }
+
+    private fun saveEvidence(appContext: Context, target: EvidenceTarget, kind: String, text: String?, photoPath: String?) {
+        val row = Evidence(
+            poiId = target.poiId,
+            noteId = target.noteId,
+            kind = kind,
+            text = text,
+            photoPath = photoPath,
+            lat = target.lat,
+            lon = target.lon,
+            itemTitle = target.title,
+            itemSummary = target.summary,
+            itemSource = target.source,
+            itemLat = target.itemLat,
+            itemLon = target.itemLon
+        )
+        evidenceScope.launch {
+            val result = runCatching { PoiManager.getRepository(appContext).addEvidence(row) }
+            withContext(Dispatchers.Main) {
+                result.onSuccess {
+                    Timber.d("Pinned $kind evidence $it to ${target.poiId}")
+                    Toast.makeText(
+                        appContext,
+                        if (kind == Evidence.KIND_PHOTO) R.string.evidence_saved_photo else R.string.evidence_saved_text,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }.onFailure {
+                    Timber.e(it, "Saving evidence for ${target.poiId}")
+                    EvidenceStore.deleteFile(photoPath)
+                    Toast.makeText(appContext, R.string.evidence_photo_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun setStatus(label: String, highlighted: Boolean) {
@@ -438,6 +681,10 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         private const val ARG_TITLE = "title"
         private const val ARG_DESCRIPTION = "description"
         private const val ARG_DISTANCE = "distance"
+        private const val STATE_PENDING_CAPTURE = "pending_capture"
+
+        /** Evidence rows are written here, not on the sheet's lifecycle: a dismiss must not cancel the insert. */
+        private val evidenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         private val NOTE_POI_ID = Regex("^${OsmNote.POI_ID_PREFIX}(\\d+)$")
 

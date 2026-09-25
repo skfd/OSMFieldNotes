@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.16 (2026-09-25)
+
+**Roadmap item 11**: "build it as far as you can" (evidence capture)
+The details sheet gets an Evidence row with "Add photo" (`TakePicture` into `files/evidence/` through a new FileProvider, no storage or camera permission declared), "Pick photo" (`PickVisualMedia`, copied into the same dir) and "Add text" chips; each capture snaps the walker's fix and writes an `evidence` row (DB v8, create-only migration, schema 8.json exported) keyed by POI id with a snapshot of the item's title, first line, source and coordinates, and on purpose without a foreign key so the row outlives the POI's refetch expiry; evidence pinned to a queued-create placeholder is re-keyed when osm.org answers. Pinned rows render at the end of the sheet with EXIF-rotated, `inSampleSize`-decoded thumbnails (a tap opens the photo via ACTION_VIEW), and a "To review" screen from a Home card ("N to review") lists everything newest first with Open item (details sheet, or the snapshot in a dialog once the POI is gone), Reviewed / Not reviewed, Share (ACTION_SEND with the JPEG or the text) and Delete (row, then file), plus a "Show reviewed" switch. `EvidenceSnapshot` (`core/`, unit-tested) holds the summary and sample-size maths. The camera round-trip, picker and viewers are verified against the contracts' source, not yet on a device.
+
 ## Version 1.2.15 (2026-09-25)
 
 **Roadmap item 10**: "build it as far as you can" (fixme hand-off)

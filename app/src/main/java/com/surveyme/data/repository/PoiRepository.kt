@@ -13,6 +13,7 @@ import com.surveyme.data.database.PoiWithNote
 import com.surveyme.data.database.SurveyMeDatabase
 import com.surveyme.data.geojson.GeoJsonParser
 import com.surveyme.data.gpx.GpxParser
+import com.surveyme.data.model.Evidence
 import com.surveyme.data.model.NoteActionRequest
 import com.surveyme.data.model.NoteStatus
 import com.surveyme.data.model.OsmNote
@@ -41,6 +42,7 @@ class PoiRepository(
     private val poiDao = database.poiDao()
     private val noteDao = database.noteDao()
     private val noteActionDao = database.noteActionDao()
+    private val evidenceDao = database.evidenceDao()
     private val gpxParser = GpxParser()
     private val geoJsonParser = GeoJsonParser()
 
@@ -220,6 +222,8 @@ class PoiRepository(
      */
     suspend fun replacePlaceholderWithServerNote(placeholderNoteId: Long, fetched: FetchedNote, completedActionId: Long) =
         database.withTransaction {
+            // Evidence pinned to the placeholder (item 11) follows the note to its real id.
+            evidenceDao.rekey(OsmNote.poiIdFor(placeholderNoteId), fetched.poi.id, fetched.note.noteId)
             deletePoisAndNotes(listOf(OsmNote.poiIdFor(placeholderNoteId)))
             storeNoteFromServer(fetched, completedActionId)
         }
@@ -237,6 +241,23 @@ class PoiRepository(
     fun observeAllPendingActions(): Flow<List<NoteActionRequest>> = noteActionDao.observeAll()
 
     fun noteActionDao(): NoteActionDao = noteActionDao
+
+    // Evidence (item 11). No foreign key to `pois`: rows survive the POI's expiry on purpose.
+
+    suspend fun addEvidence(evidence: Evidence): Long = evidenceDao.insert(evidence)
+
+    suspend fun getEvidence(id: Long): Evidence? = evidenceDao.getById(id)
+
+    fun observeEvidenceForPoi(poiId: String): Flow<List<Evidence>> = evidenceDao.observeForPoi(poiId)
+
+    fun observeAllEvidence(): Flow<List<Evidence>> = evidenceDao.observeAll()
+
+    fun observeUnreviewedEvidenceCount(): Flow<Int> = evidenceDao.observeUnreviewedCount()
+
+    suspend fun setEvidenceReviewed(id: Long, reviewed: Boolean) = evidenceDao.setReviewed(id, reviewed)
+
+    /** Removes the row; the caller deletes the photo file (the repository knows nothing about files). */
+    suspend fun deleteEvidence(id: Long) = evidenceDao.delete(id)
 
     /**
      * Store one page of notes fetched around ([lat], [lon]). In one transaction: expire note
