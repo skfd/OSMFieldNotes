@@ -22,7 +22,9 @@ import java.io.IOException
  *
  * After a successful fetch of a source, rows of that source farther than the radius from the
  * new centre are deleted and the fresh rows are merged through [PoiRepository.insertPois],
- * which keeps muted, visited and last-ping flags on rows that already existed.
+ * which keeps muted, visited and last-ping flags on rows that already existed. Notes also go
+ * through [PoiRepository.storeFetchedNotes], which drops in-radius notes the API stopped
+ * returning unless they were closed recently.
  */
 class NearbyFetcher(
     private val repository: PoiRepository,
@@ -108,25 +110,47 @@ class NearbyFetcher(
                 legacyPurged = true
             }
 
-            val notes = fetchSource(notesGate, lat, lon, trigger, radiusMeters) {
-                notesService.fetchNotes(lat, lon, radiusMeters)
-            }
-            val fixmes = fetchSource(fixmesGate, lat, lon, trigger, radiusMeters) {
-                withContext(Dispatchers.IO) { overpassService.fetchFixmePois(lat, lon, radiusMeters) }
-            }
+            val notes = fetchSource(
+                notesGate, lat, lon, trigger, radiusMeters,
+                call = { notesService.fetchNotes(lat, lon, radiusMeters) },
+                items = { page -> page.notes },
+                poiOf = { it.poi },
+                store = { page, inRange ->
+                    repository.storeFetchedNotes(inRange, lat, lon, radiusMeters, page.truncated)
+                }
+            )
+            val fixmes = fetchSource(
+                fixmesGate, lat, lon, trigger, radiusMeters,
+                call = { withContext(Dispatchers.IO) { overpassService.fetchFixmePois(lat, lon, radiusMeters) } },
+                items = { it },
+                poiOf = { it },
+                store = { _, inRange ->
+                    val expired = repository.expireOutsideRadius(fixmesGate.source, lat, lon, radiusMeters)
+                    repository.insertPois(inRange)
+                    expired
+                }
+            )
             return Report(notes, fixmes).also { Timber.i("Fetch ($trigger) at $lat,$lon: ${it.describe()}") }
         } finally {
             running.unlock()
         }
     }
 
-    private suspend fun fetchSource(
+    /**
+     * One gated fetch of a source. [call] hits the network and answers a page [P]; [items] and
+     * [poiOf] let the circle filter see each item's POI; [store] writes the in-range items and
+     * returns how many stored rows it expired or dropped.
+     */
+    private suspend fun <P, T> fetchSource(
         gate: Gate,
         lat: Double,
         lon: Double,
         trigger: Trigger,
         radiusMeters: Int,
-        call: suspend () -> List<Poi>
+        call: suspend () -> P,
+        items: (P) -> List<T>,
+        poiOf: (T) -> Poi,
+        store: suspend (P, List<T>) -> Int
     ): Outcome {
         val now = System.currentTimeMillis()
 
@@ -159,9 +183,8 @@ class NearbyFetcher(
 
         // The notes API answers a bounding square; keep the stored set a circle so items in the
         // corners do not get inserted and then expired on every fetch.
-        val inRange = fresh.filter { it.distanceTo(lat, lon) <= radiusMeters }
-        val expired = repository.expireOutsideRadius(gate.source, lat, lon, radiusMeters)
-        repository.insertPois(inRange)
+        val inRange = items(fresh).filter { poiOf(it).distanceTo(lat, lon) <= radiusMeters }
+        val expired = store(fresh, inRange)
 
         gate.backoffMillis = 0L
         gate.nextAllowedAt = now + Constants.FETCH_MIN_INTERVAL_MILLIS

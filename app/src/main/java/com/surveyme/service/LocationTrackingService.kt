@@ -221,7 +221,8 @@ class LocationTrackingService : Service() {
         serviceScope.launch {
             try {
                 val repository = PoiManager.getRepository(this@LocationTrackingService)
-                repository.getAllActivePois().collectLatest { pois ->
+                // Closed notes stay in the store for a while but must not ping.
+                repository.getPingablePois().collectLatest { pois ->
                     synchronized(poisCache) {
                         poisCache.clear()
                         poisCache.addAll(pois)

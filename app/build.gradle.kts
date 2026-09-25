@@ -13,8 +13,8 @@ android {
         applicationId = "com.surveyme"
         minSdk = 23
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.2.7"
+        versionCode = 16
+        versionName = "1.2.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -63,6 +63,11 @@ android {
             }
         }
     }
+}
+
+// Room writes schemas/<db>/<version>.json so migrations can be checked against the real DDL.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {

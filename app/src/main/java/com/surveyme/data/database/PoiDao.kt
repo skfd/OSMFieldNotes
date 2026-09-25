@@ -1,9 +1,17 @@
 package com.surveyme.data.database
 
 import androidx.room.*
+import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.flow.Flow
+
+/** A POI row with its note row, when it is an OSM note. Fixmes and imported waypoints have no note. */
+data class PoiWithNote(
+    @Embedded val poi: Poi,
+    @Relation(parentColumn = "id", entityColumn = "poiId")
+    val note: OsmNote?
+)
 
 @Dao
 interface PoiDao {
@@ -15,6 +23,20 @@ interface PoiDao {
 
     @Query("SELECT * FROM pois WHERE isActive = 1 AND (source = 'osm_notes' OR source = 'osm_fixme') ORDER BY createdAt DESC")
     fun getNotesAndFixmes(): Flow<List<Poi>>
+
+    @Transaction
+    @Query("SELECT * FROM pois WHERE isActive = 1 AND (source = 'osm_notes' OR source = 'osm_fixme') ORDER BY createdAt DESC")
+    fun getNotesAndFixmesWithNote(): Flow<List<PoiWithNote>>
+
+    /**
+     * Active POIs that may ping: everything that is not a note, plus notes that are open (or
+     * have no note row yet, pre-v4 data). Item 8 adds labels and surveyAfter to this WHERE.
+     */
+    @Query(
+        "SELECT pois.* FROM pois LEFT JOIN osm_notes ON osm_notes.poiId = pois.id " +
+            "WHERE pois.isActive = 1 AND (osm_notes.status IS NULL OR osm_notes.status = 'open')"
+    )
+    fun getPingablePois(): Flow<List<Poi>>
 
     @Query("SELECT * FROM pois WHERE id = :id LIMIT 1")
     suspend fun getPoiById(id: String): Poi?

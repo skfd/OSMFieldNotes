@@ -4,6 +4,7 @@ import android.location.Location
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 import com.surveyme.data.repository.PoiRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,13 +30,14 @@ class NotesViewModel(
     private fun loadNotes() {
         viewModelScope.launch {
             _notesState.value = NotesState.Loading
-            repository.getNotesAndFixmes()
+            repository.getNotesAndFixmesWithNote()
                 .catch { e ->
                     Timber.e(e, "Error loading OSM Notes")
                     _notesState.value = NotesState.Error(e.message ?: "Unknown error")
                 }
-                .collect { notes ->
-                    val noteItems = notes.map { poi ->
+                .collect { rows ->
+                    val noteItems = rows.map { row ->
+                        val poi = row.poi
                         val distance = currentUserLocation?.let { loc ->
                             val results = FloatArray(1)
                             Location.distanceBetween(
@@ -45,7 +47,7 @@ class NotesViewModel(
                             )
                             results[0]
                         }
-                        NoteItem(poi, distance)
+                        NoteItem(poi, distance, row.note)
                     }.sortedBy { it.distance ?: Float.MAX_VALUE }
                     
                     if (noteItems.isEmpty()) {
@@ -83,9 +85,11 @@ class NotesViewModel(
     }
 }
 
+/** A Notes tab row. [note] is the structured note for OSM notes, null for fixmes and pre-v4 rows. */
 data class NoteItem(
     val poi: Poi,
-    val distance: Float?
+    val distance: Float?,
+    val note: OsmNote? = null
 )
 
 class NotesViewModelFactory(

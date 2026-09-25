@@ -21,4 +21,10 @@ object Constants {
     /** First backoff after a failed fetch; doubles per failure up to the cap. */
     const val FETCH_BACKOFF_BASE_MILLIS = 2 * 60 * 1000L
     const val FETCH_BACKOFF_MAX_MILLIS = 30 * 60 * 1000L
+    /**
+     * A note the API no longer returns is dropped from the stored set, unless it was closed
+     * within this long: a note you just closed stays visible. Matches the API's own 7-day
+     * window for returning closed notes.
+     */
+    const val NOTE_CLOSED_RETENTION_MILLIS = 7 * 24 * 60 * 60 * 1000L
 }

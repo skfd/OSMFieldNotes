@@ -41,15 +41,27 @@ class NotesAdapter(
 
         fun bind(item: NoteItem) {
             binding.apply {
+                val note = item.note
                 textNoteId.text = item.poi.name
-                textDescription.text = item.poi.description
-                textDate.text = "Created: ${dateFormat.format(item.poi.createdAt)}"
-                
+                // Structured thread when we have it; the flattened POI text for fixmes and pre-v4 rows.
+                textDescription.text = note?.openingText?.takeIf { it.isNotBlank() } ?: item.poi.description
+                textDate.text = buildString {
+                    append("Created: ${dateFormat.format(note?.createdAt ?: item.poi.createdAt)}")
+                    if (note != null) {
+                        if (!note.isOpen) {
+                            append(" · ${note.status.apiValue}")
+                            note.closedAt?.let { append(" ${dateFormat.format(it)}") }
+                        }
+                        val replies = note.comments.size - 1
+                        if (replies > 0) append(" · $replies ${if (replies == 1) "reply" else "replies"}")
+                    }
+                }
+
                 if (item.poi.source == "osm_fixme") {
                     textType.text = "FIXME"
                     textType.visibility = android.view.View.VISIBLE
                 } else if (item.poi.source == "osm_notes") {
-                    textType.text = "NOTE"
+                    textType.text = if (note != null && !note.isOpen) "NOTE · ${note.status.apiValue.uppercase()}" else "NOTE"
                     textType.visibility = android.view.View.VISIBLE
                 } else {
                     textType.visibility = android.view.View.GONE

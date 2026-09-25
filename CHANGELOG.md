@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.8 (2026-09-25)
+
+**Roadmap item 3**: "build it as far as you can" (first-class note model)
+Notes now have their own `osm_notes` table (DB v4, real migration): note id, status, created and closed dates, the comment thread as structured entries (date, author or null for anonymous, uid, action, text), plus `labels` and `surveyAfter` reserved for classification. The POI row stays the thing on the map and keeps its ping flags. The parser reads the real notes.json date format (the old ISO pattern silently fell back to "now"), keeps closed notes, and a refetch drops in-radius notes the API no longer returns unless they were closed within 7 days; closed notes are excluded from proximity pings. The Notes tab and details sheet show status, close date and reply count from the structured data; the full thread rendering is item 4.
+
 ## Version 1.2.7 (2026-09-25)
 
 **Roadmap item 2**: "build it as far as you can" (fetch follows the walker)

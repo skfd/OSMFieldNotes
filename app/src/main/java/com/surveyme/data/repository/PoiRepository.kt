@@ -1,9 +1,15 @@
 package com.surveyme.data.repository
 
 import android.content.Context
+import androidx.room.withTransaction
+import com.surveyme.core.Constants
+import com.surveyme.data.FetchedNote
+import com.surveyme.data.OsmNotesService
+import com.surveyme.data.database.PoiWithNote
 import com.surveyme.data.database.SurveyMeDatabase
 import com.surveyme.data.geojson.GeoJsonParser
 import com.surveyme.data.gpx.GpxParser
+import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +24,7 @@ class PoiRepository(
     private val context: Context
 ) {
     private val poiDao = database.poiDao()
+    private val noteDao = database.noteDao()
     private val gpxParser = GpxParser()
     private val geoJsonParser = GeoJsonParser()
 
@@ -27,6 +34,16 @@ class PoiRepository(
         poiDao.getPoisByCategory(category)
 
     fun getNotesAndFixmes(): Flow<List<Poi>> = poiDao.getNotesAndFixmes()
+
+    /** Notes tab rows: each POI with its structured note when it has one. */
+    fun getNotesAndFixmesWithNote(): Flow<List<PoiWithNote>> = poiDao.getNotesAndFixmesWithNote()
+
+    /** What proximity may ping: active POIs minus closed notes. */
+    fun getPingablePois(): Flow<List<Poi>> = poiDao.getPingablePois()
+
+    suspend fun getNoteByPoiId(poiId: String): OsmNote? = noteDao.getByPoiId(poiId)
+
+    fun observeNoteByPoiId(poiId: String): Flow<OsmNote?> = noteDao.observeByPoiId(poiId)
 
     fun getUnvisitedPois(): Flow<List<Poi>> = poiDao.getUnvisitedPois()
 
@@ -62,6 +79,68 @@ class PoiRepository(
         poiDao.insertPois(merged)
     }
 
+    /**
+     * Insert or replace note rows, keeping the app's own fields ([OsmNote.labels],
+     * [OsmNote.surveyAfter]) of rows that already exist. The API never knows about those.
+     */
+    suspend fun insertNotes(notes: List<OsmNote>) {
+        if (notes.isEmpty()) return
+        val existing = notes.map { it.noteId }
+            .chunked(500)
+            .flatMap { noteDao.getByNoteIds(it) }
+            .associateBy { it.noteId }
+        val merged = notes.map { note ->
+            val old = existing[note.noteId] ?: return@map note
+            note.copy(labels = old.labels, surveyAfter = old.surveyAfter)
+        }
+        noteDao.insertAll(merged)
+    }
+
+    /**
+     * Store one page of notes fetched around ([lat], [lon]). In one transaction: expire note
+     * rows outside the radius, drop in-radius notes the API no longer returns (it returns open
+     * notes and ones closed within 7 days, so an absent note is closed or hidden) unless they
+     * were closed within [Constants.NOTE_CLOSED_RETENTION_MILLIS], then merge the page in,
+     * keeping ping flags on the POI and labels/surveyAfter on the note. When [truncated] the
+     * page is not the whole area and nothing in radius is dropped. Returns how many rows went.
+     */
+    suspend fun storeFetchedNotes(
+        page: List<FetchedNote>,
+        lat: Double,
+        lon: Double,
+        radiusMeters: Int,
+        truncated: Boolean,
+        now: Long = System.currentTimeMillis()
+    ): Int = database.withTransaction {
+        val source = OsmNotesService.SOURCE_NOTES
+        val expiredOutside = expireOutsideRadius(source, lat, lon, radiusMeters)
+
+        var dropped = 0
+        if (!truncated) {
+            val returned = page.map { it.poi.id }.toSet()
+            val absent = poiDao.getPoisBySource(source).filter { it.id !in returned }
+            if (absent.isNotEmpty()) {
+                val notesByPoi = absent.map { it.id }
+                    .chunked(500)
+                    .flatMap { noteDao.getByPoiIds(it) }
+                    .associateBy { it.poiId }
+                val toDrop = absent.filter { poi ->
+                    val note = notesByPoi[poi.id]
+                    val closedRecently = note != null && !note.isOpen &&
+                        (note.closedAt?.time ?: 0L) > now - Constants.NOTE_CLOSED_RETENTION_MILLIS
+                    !closedRecently
+                }.map { it.id }
+                deletePoisAndNotes(toDrop)
+                dropped = toDrop.size
+                if (dropped > 0) Timber.d("Dropped $dropped notes the API no longer returns")
+            }
+        }
+
+        insertPois(page.map { it.poi })
+        insertNotes(page.map { it.note })
+        expiredOutside + dropped
+    }
+
     suspend fun setMuted(poiId: String, muted: Boolean) {
         poiDao.setMuted(poiId, muted)
         Timber.d("POI muted=$muted: $poiId")
@@ -81,7 +160,18 @@ class PoiRepository(
 
     suspend fun deletePoi(poi: Poi) = poiDao.deletePoi(poi)
 
-    suspend fun deleteAllFromSource(source: String) = poiDao.deleteAllFromSource(source)
+    suspend fun deleteAllFromSource(source: String) {
+        if (source == OsmNotesService.SOURCE_NOTES) noteDao.deleteAll()
+        poiDao.deleteAllFromSource(source)
+    }
+
+    /** Delete POI rows and, for notes, their note rows. */
+    private suspend fun deletePoisAndNotes(ids: List<String>) {
+        ids.chunked(500).forEach {
+            noteDao.deleteByPoiIds(it)
+            poiDao.deleteByIds(it)
+        }
+    }
 
     suspend fun getPoisBySource(source: String): List<Poi> = poiDao.getPoisBySource(source)
 
@@ -95,7 +185,7 @@ class PoiRepository(
         val stale = poiDao.getPoisBySource(source)
             .filter { it.distanceTo(lat, lon) > radiusMeters }
             .map { it.id }
-        stale.chunked(500).forEach { poiDao.deleteByIds(it) }
+        deletePoisAndNotes(stale)
         if (stale.isNotEmpty()) Timber.d("Expired ${stale.size} $source rows beyond ${radiusMeters}m")
         return stale.size
     }
