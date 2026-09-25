@@ -14,6 +14,8 @@ data class Element(
     @SerializedName("lat") val lat: Double?,
     @SerializedName("lon") val lon: Double?,
     @SerializedName("center") val center: Center?,
+    /** Present with `out meta`; null otherwise. */
+    @SerializedName("version") val version: Long? = null,
     @SerializedName("tags") val tags: Map<String, String>?
 )
 

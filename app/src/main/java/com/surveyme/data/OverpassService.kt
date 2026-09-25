@@ -1,6 +1,7 @@
 package com.surveyme.data
 
 import com.google.gson.Gson
+import com.surveyme.core.OsmElementRef
 import com.surveyme.data.model.OverpassResponse
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
@@ -90,7 +91,7 @@ class OverpassService {
               node["fixme"](around:$radius,$lat,$lon);
               way["fixme"](around:$radius,$lat,$lon);
             );
-            out center;
+            out center meta;
         """.trimIndent()
 
         val url = "https://overpass-api.de/api/interpreter?data=${java.net.URLEncoder.encode(query, "UTF-8")}"
@@ -162,7 +163,10 @@ class OverpassService {
                         longitude = lon,
                         category = category, // Fits best for bicycle rental
                         source = source,
-                        tags = element.tags ?: emptyMap()
+                        tags = element.tags ?: emptyMap(),
+                        osmElementType = element.type.takeIf { it in OsmElementRef.TYPES },
+                        osmElementId = element.id,
+                        osmElementVersion = element.version
                     )
                     pois.add(poi)
                 }

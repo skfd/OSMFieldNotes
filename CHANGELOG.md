@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.15 (2026-09-25)
+
+**Roadmap item 10**: "build it as far as you can" (fixme hand-off)
+The POI row now carries the OSM element behind a fixme as columns (`osmElementType`, `osmElementId`, `osmElementVersion` from Overpass `out meta`; DB v7, with the existing `overpass_{type}_{id}` ids split into the new columns by the migration itself, schema 7.json exported), and `OsmElementRef` (`core/`, unit-tested) parses ids and note text and builds the URLs. Fixme details get a "Fix in editor" chip row: osm.org, Edit online (`/edit?type=id`), Vespucci when installed (an explicit-package `http://127.0.0.1:8111/load_and_zoom?...&select=node123` intent, which its manifest and RemoteControlUrlActivity accept), StreetComplete when installed (a `geo:` intent, the only scheme it registers) and "Open map here" (`geo:` chooser); a `<queries>` block gives Android 11+ visibility. Any editor tap marks the fixme visited and a "Dismiss for now" chip sets `isMuted` (the flag the service actually filters pings on), leaving the row dimmed as "FIXME · DISMISSED" with an undo; a note whose thread links an osm.org element gets the same chips for that element. Editor intents are verified against source, not yet on a device.
+
 ## Version 1.2.14 (2026-09-25)
 
 **Roadmap item 9**: "build it as far as you can" (morning triage)

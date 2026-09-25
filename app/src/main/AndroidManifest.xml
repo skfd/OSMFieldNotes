@@ -13,6 +13,22 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- Package visibility (Android 11+) for the fixme hand-off (item 10): the two editors we
+         target by package, and whoever answers geo: and https: so the generic chips can be gated
+         on an actual handler. -->
+    <queries>
+        <package android:name="de.blau.android" />
+        <package android:name="de.westnordost.streetcomplete" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".SurveyMeApplication"
         android:allowBackup="true"

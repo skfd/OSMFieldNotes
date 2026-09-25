@@ -118,9 +118,41 @@
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:background="?android:attr/listDivider"
-        app:layout_constraintBottom_toTopOf="@+id/actionRow"
+        app:layout_constraintBottom_toTopOf="@+id/handoffRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
+
+    <!--
+        Item 10: hand the element off to an editor. Shown for fixmes and for notes whose thread
+        links an element; NoteDetailsDialogFragment.showHandoff fills the chips.
+    -->
+    <LinearLayout
+        android:id="@+id/handoffRow"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@+id/actionRow"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/textHandoffTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="?attr/textAppearanceLabelMedium"
+            tools:text="Fix in editor · node 123" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipHandoff"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="6dp"
+            app:chipSpacingVertical="0dp"
+            app:singleLine="false" />
+    </LinearLayout>
 
     <!--
         Item 6: comment / close / reopen. Laid out now, hidden until OSM login (item 5) exists;

@@ -13,7 +13,7 @@ import com.surveyme.data.model.Poi
 
 @Database(
     entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -83,6 +83,27 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v7: the OSM element behind a fixme as columns (item 10). Three nullable columns, and
+         * the existing `overpass_{type}_{id}` ids are split into them in SQL so old rows hand
+         * off without a refetch; the version stays null until Overpass reports one.
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `osmElementType` TEXT")
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `osmElementId` INTEGER")
+                db.execSQL("ALTER TABLE `pois` ADD COLUMN `osmElementVersion` INTEGER")
+                // 'overpass_' is 9 characters; GLOB, not LIKE, because '_' is a LIKE wildcard.
+                db.execSQL(
+                    "UPDATE `pois` SET " +
+                        "`osmElementType` = substr(`id`, 10, instr(substr(`id`, 10), '_') - 1), " +
+                        "`osmElementId` = CAST(substr(`id`, 10 + instr(substr(`id`, 10), '_')) AS INTEGER) " +
+                        "WHERE `id` GLOB 'overpass_node_[0-9]*' OR `id` GLOB 'overpass_way_[0-9]*' " +
+                        "OR `id` GLOB 'overpass_relation_[0-9]*'"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -90,7 +111,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance

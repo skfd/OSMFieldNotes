@@ -23,8 +23,18 @@ data class Poi(
     val tags: Map<String, String> = emptyMap(), // OSM-style tags
     val notes: String? = null,
     val priority: Int = 0, // 0 = normal, 1 = high, -1 = low
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    /** OSM element behind a fixme (item 10): "node", "way" or "relation"; null for notes and waypoints. */
+    val osmElementType: String? = null,
+    val osmElementId: Long? = null,
+    /** The element version Overpass reported (`out meta`), so an editor can be told what we saw. */
+    val osmElementVersion: Long? = null
 ) {
+    /** The element this POI stands for, from the columns or, for rows older than v7, the id string. */
+    val element: com.surveyme.core.OsmElementRef?
+        get() = com.surveyme.core.OsmElementRef.of(osmElementType, osmElementId)
+            ?: com.surveyme.core.OsmElementRef.fromPoiId(id)
+
     fun distanceTo(lat: Double, lon: Double): Float {
         val results = FloatArray(1)
         android.location.Location.distanceBetween(

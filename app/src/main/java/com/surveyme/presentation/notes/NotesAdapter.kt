@@ -61,8 +61,11 @@ class NotesAdapter(
                     }
                 }
 
+                // A fixme dismissed for now (item 10) stays in the list, dimmed, and does not ping.
+                val dismissed = item.poi.source == "osm_fixme" && item.poi.isMuted
+                root.alpha = if (dismissed) 0.55f else 1f
                 if (item.poi.source == "osm_fixme") {
-                    textType.text = "FIXME"
+                    textType.text = if (dismissed) "FIXME · DISMISSED" else "FIXME"
                     textType.visibility = android.view.View.VISIBLE
                 } else if (item.poi.source == "osm_notes") {
                     textType.text = when {

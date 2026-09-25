@@ -21,9 +21,11 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.surveyme.R
+import com.surveyme.core.OsmElementRef
 import com.surveyme.data.NoteActionQueue
 import com.surveyme.data.OsmAuthManager
 import com.surveyme.data.OsmAuthState
@@ -65,6 +67,9 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
 
     /** Set when the osm.org page for this item is known; null hides the button. */
     private var osmUrl: String? = null
+
+    /** Local copy of the fixme's dismissed flag; the sheet observes the note row, not the POI row. */
+    private var dismissed = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -147,8 +152,17 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
             else -> renderPlain(poi)
         }
 
+        // Item 10: a fixme hands its element off; a note hands off the first element its thread
+        // links (no dismiss for a note: the hand-off is about the element, not the note).
+        val linked = when {
+            poi.source == "osm_fixme" -> poi.element
+            note != null && !note.isPending -> OsmElementRef.firstInText(note.comments.joinToString("\n") { it.text })
+            else -> null
+        }
+        if (linked != null) showHandoff(poi, linked, isFixme = poi.source == "osm_fixme") else binding.handoffRow.visibility = View.GONE
+
         // A placeholder (queued create) has no page on osm.org yet.
-        osmUrl = note?.takeIf { !it.isPending }?.url ?: osmUrlFromPoiId(poi.id)
+        osmUrl = note?.takeIf { !it.isPending }?.url ?: poi.element?.browseUrl ?: osmUrlFromPoiId(poi.id)
         binding.buttonOpenOsm.visibility = if (osmUrl != null) View.VISIBLE else View.GONE
     }
 
@@ -200,8 +214,13 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
     )
 
     private fun renderFixme(poi: Poi) {
-        setStatus("FIXME", highlighted = true)
-        binding.textDates.text = "Fetched ${dateFormat.format(poi.createdAt)}"
+        dismissed = poi.isMuted
+        setStatus(if (dismissed) "FIXME · DISMISSED" else "FIXME", highlighted = !dismissed)
+        binding.textDates.text = buildString {
+            append("Fetched ${dateFormat.format(poi.createdAt)}")
+            poi.osmElementVersion?.let { append(" · v$it") }
+            if (poi.isVisited) append(" · visited")
+        }
         val fixmeText = poi.tags["fixme"]?.takeIf { it.isNotBlank() }
             ?: poi.description?.removePrefix("Needs fixing:")?.trim().orEmpty()
         val rows = mutableListOf<DetailRow>()
@@ -309,6 +328,64 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         input.inputText.requestFocus()
     }
 
+    /**
+     * The "Fix in editor" chips (item 10): osm.org, the web editor, Vespucci and StreetComplete
+     * when installed, and a `geo:` chooser for any map app. Every editor tap marks a fixme
+     * visited (a record that it was looked at; pings are stopped by "Dismiss for now", which
+     * sets `isMuted`, the flag the tracking service filters on).
+     */
+    private fun showHandoff(poi: Poi, element: OsmElementRef, isFixme: Boolean) {
+        val context = context ?: return
+        val options = ElementHandoff.options(context, element, poi.latitude, poi.longitude)
+        binding.textHandoffTitle.text = "Fix in editor · ${element.type} ${element.id}"
+        binding.chipHandoff.removeAllViews()
+        options.forEach { option ->
+            binding.chipHandoff.addView(actionChip(option.label) {
+                if (openIntent(option.intent, option.label) && isFixme) {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        runCatching { PoiManager.getRepository(context).markAsVisited(poi.id) }
+                            .onFailure { Timber.e(it, "Marking ${poi.id} visited") }
+                    }
+                    if (!dismissed) {
+                        Toast.makeText(context, "Marked visited. Dismiss for now to stop pings.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            })
+        }
+        if (isFixme) {
+            binding.chipHandoff.addView(actionChip(if (dismissed) "Undo dismiss" else "Dismiss for now") {
+                val muted = !dismissed
+                viewLifecycleOwner.lifecycleScope.launch {
+                    runCatching { PoiManager.getRepository(context).setMuted(poi.id, muted) }
+                        .onFailure { Timber.e(it, "Muting ${poi.id}") }
+                        .onSuccess {
+                            if (_binding == null) return@onSuccess
+                            dismissed = muted
+                            setStatus(if (muted) "FIXME · DISMISSED" else "FIXME", highlighted = !muted)
+                            showHandoff(poi, element, isFixme = true)
+                            Toast.makeText(context, if (muted) "Dismissed: no more pings for this fixme" else "Pings again", Toast.LENGTH_SHORT).show()
+                        }
+                }
+            })
+        }
+        binding.handoffRow.visibility = View.VISIBLE
+    }
+
+    private fun actionChip(label: String, onClick: () -> Unit): Chip = Chip(requireContext()).apply {
+        text = label
+        isCheckable = false
+        setEnsureMinTouchTargetSize(false)
+        setOnClickListener { onClick() }
+    }
+
+    /** Starts [intent]; a missing handler is a toast, not a crash. Returns whether it started. */
+    private fun openIntent(intent: Intent, label: String): Boolean =
+        runCatching { startActivity(intent) }
+            .onFailure {
+                Timber.w(it, "No activity for $label: ${intent.data}")
+                Toast.makeText(context, "Nothing installed to open $label", Toast.LENGTH_SHORT).show()
+            }.isSuccess
+
     /** The distance the list computed, or one from the last known fix when opened from a ping or marker. */
     private fun showDistance(poi: Poi, distanceArg: Float) {
         val meters = if (!distanceArg.isNaN()) distanceArg else lastKnownLocation()?.let {
@@ -354,18 +431,14 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         private const val ARG_DISTANCE = "distance"
 
         private val NOTE_POI_ID = Regex("^${OsmNote.POI_ID_PREFIX}(\\d+)$")
-        private val ELEMENT_POI_ID = Regex("^overpass_(node|way|relation)_(\\d+)$")
 
         /**
          * The osm.org page derivable from a POI id: `osm_note_{id}` or `overpass_{type}_{id}`.
-         * Item 10 gives fixmes structured element fields; until then the id string is the source.
+         * Used before the row is loaded; once it is, [Poi.element] (the v7 columns) wins.
          */
         fun osmUrlFromPoiId(poiId: String): String? {
             NOTE_POI_ID.find(poiId)?.let { return "https://www.openstreetmap.org/note/${it.groupValues[1]}" }
-            ELEMENT_POI_ID.find(poiId)?.let {
-                return "https://www.openstreetmap.org/${it.groupValues[1]}/${it.groupValues[2]}"
-            }
-            return null
+            return OsmElementRef.fromPoiId(poiId)?.browseUrl
         }
 
         fun newInstance(
