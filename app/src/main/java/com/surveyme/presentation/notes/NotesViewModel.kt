@@ -79,8 +79,9 @@ class NotesViewModel(
                     // Pinging notes first, dismissed fixmes last, distance within each group.
                     val shown = all.filter { it.matches(filter) }
                         .sortedWith(compareBy({ it.sortGroup }, { it.distance ?: Float.MAX_VALUE }))
+                    // An empty store is a different message from "the filters hid everything".
                     _notesState.value = when {
-                        all.isEmpty() -> NotesState.Empty(filtered = false)
+                        rows.isEmpty() -> NotesState.Empty(filtered = false)
                         shown.isEmpty() -> NotesState.Empty(filtered = true)
                         else -> NotesState.Success(shown)
                     }
