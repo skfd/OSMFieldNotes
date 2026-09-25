@@ -162,7 +162,7 @@ class OsmNotesService {
 
     /**
      * The map row for a note. `description` is the opening comment (the ping shows its first
-     * line), `notes` the thread flattened for the details sheet until item 4 renders comments.
+     * line), `notes` the thread flattened as a fallback for rows without a note row.
      */
     private fun poiFor(note: OsmNote, lat: Double, lon: Double): Poi {
         val opening = note.openingText.ifBlank { "OSM Note #${note.noteId}" }

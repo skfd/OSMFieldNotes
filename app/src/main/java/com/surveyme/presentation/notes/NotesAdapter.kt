@@ -67,20 +67,16 @@ class NotesAdapter(
                     textType.visibility = android.view.View.GONE
                 }
                 
-                if (item.distance != null) {
-                    val distanceMeters = item.distance.roundToInt()
-                    if (distanceMeters < 1000) {
-                        textDistance.text = "$distanceMeters m"
-                    } else {
-                        val distanceKm = String.format("%.1f", distanceMeters / 1000f)
-                        textDistance.text = "$distanceKm km"
-                    }
-                } else {
-                    textDistance.text = ""
-                }
+                textDistance.text = item.distance?.let { formatDistance(it) } ?: ""
             }
         }
     }
+}
+
+/** "320 m" under a kilometre, "1.2 km" above; shared by the list and the details sheet. */
+fun formatDistance(meters: Float): String {
+    val rounded = meters.roundToInt()
+    return if (rounded < 1000) "$rounded m" else String.format(Locale.getDefault(), "%.1f km", rounded / 1000f)
 }
 
 class NoteDiffCallback : DiffUtil.ItemCallback<NoteItem>() {

@@ -182,7 +182,8 @@ class NotesFragment : Fragment() {
         val dialog = NoteDetailsDialogFragment.newInstance(
             noteId = noteItem.poi.id,
             title = noteItem.poi.name,
-            description = noteItem.poi.notes ?: "No details available"
+            description = noteItem.poi.notes ?: noteItem.poi.description ?: "No details available",
+            distanceMeters = noteItem.distance
         )
         dialog.show(childFragmentManager, NoteDetailsDialogFragment.TAG)
     }

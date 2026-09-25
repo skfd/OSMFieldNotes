@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingVertical="8dp">
+
+    <!-- "alice commented · 3 days ago"; hidden for the plain-text row. -->
+    <TextView
+        android:id="@+id/textHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?attr/textAppearanceCaption"
+        android:textStyle="bold"
+        tools:text="alice commented · 3 days ago" />
+
+    <TextView
+        android:id="@+id/textBody"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:autoLink="web"
+        android:textAppearance="?attr/textAppearanceBody1"
+        android:textIsSelectable="true"
+        tools:text="Is this shop still open? The sign was gone last week." />
+
+</LinearLayout>

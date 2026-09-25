@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.9 (2026-09-25)
+
+**Roadmap item 4**: "build it as far as you can" (note details rework)
+The details sheet now takes the full screen and renders a note's thread as a RecyclerView of comments, each with author (or "Anonymous"), action (opened / commented / closed / reopened), a relative date within the last week or a short absolute one, and the text; bare close and reopen entries get a row, empty plain comments do not. The header shows an Open / Closed / Hidden status pill, created and closed dates, reply count and the distance from the walker (from the list, or from the last known fix when opened from a ping or marker). "Open on osm.org" links to the note page, or to the element page for a fixme whose `overpass_{type}_{id}` id is derivable; fixmes show their fixme text and raw tags as key/value rows, and "Show on map" still round-trips to the map. A comment / close / reopen action row is laid out but hidden until OSM login (item 5) and posting (item 6) exist.
+
 ## Version 1.2.8 (2026-09-25)
 
 **Roadmap item 3**: "build it as far as you can" (first-class note model)
