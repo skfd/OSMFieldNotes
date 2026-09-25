@@ -170,9 +170,12 @@ class NoteActionQueue private constructor(context: Context) {
         Timber.w("${row.action} on note ${row.noteId} failed ($message), retry in ${backoffMillis / 1000}s")
         val wait = backoffMillis
         retryJob?.cancel()
+        // The timer only owns the sleep: a drain triggered meanwhile (network back, login) cancels
+        // the sleep, never a post that is already on the wire.
         retryJob = scope.launch {
             delay(wait)
-            drainNow("retry")
+            retryJob = null
+            scope.launch { drainNow("retry") }
         }
     }
 
