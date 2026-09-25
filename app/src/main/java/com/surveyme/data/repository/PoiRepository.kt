@@ -5,10 +5,13 @@ import androidx.room.withTransaction
 import com.surveyme.core.Constants
 import com.surveyme.data.FetchedNote
 import com.surveyme.data.OsmNotesService
+import com.surveyme.data.database.NoteActionDao
 import com.surveyme.data.database.PoiWithNote
 import com.surveyme.data.database.SurveyMeDatabase
 import com.surveyme.data.geojson.GeoJsonParser
 import com.surveyme.data.gpx.GpxParser
+import com.surveyme.data.model.NoteActionRequest
+import com.surveyme.data.model.NoteStatus
 import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
@@ -19,12 +22,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.InputStream
+import java.util.Date
 class PoiRepository(
     private val database: SurveyMeDatabase,
     private val context: Context
 ) {
     private val poiDao = database.poiDao()
     private val noteDao = database.noteDao()
+    private val noteActionDao = database.noteActionDao()
     private val gpxParser = GpxParser()
     private val geoJsonParser = GeoJsonParser()
 
@@ -82,19 +87,53 @@ class PoiRepository(
     /**
      * Insert or replace note rows, keeping the app's own fields ([OsmNote.labels],
      * [OsmNote.surveyAfter]) of rows that already exist. The API never knows about those.
+     * A note with a close or reopen still waiting in the queue keeps that optimistic status
+     * too, so a background refetch does not flip it back before the post went through.
      */
     suspend fun insertNotes(notes: List<OsmNote>) {
         if (notes.isEmpty()) return
-        val existing = notes.map { it.noteId }
-            .chunked(500)
+        val ids = notes.map { it.noteId }
+        val existing = ids.chunked(500)
             .flatMap { noteDao.getByNoteIds(it) }
             .associateBy { it.noteId }
+        val pendingStatus = ids.chunked(500)
+            .flatMap { noteActionDao.getForNotes(it) }
+            .groupBy { it.noteId }
+            .mapValues { (_, actions) -> actions.mapNotNull { it.kind.resultingStatus }.lastOrNull() }
         val merged = notes.map { note ->
-            val old = existing[note.noteId] ?: return@map note
-            note.copy(labels = old.labels, surveyAfter = old.surveyAfter)
+            val old = existing[note.noteId]
+            var out = if (old != null) note.copy(labels = old.labels, surveyAfter = old.surveyAfter) else note
+            pendingStatus[note.noteId]?.let { status ->
+                if (out.status != status) out = out.copy(status = status, closedAt = old?.closedAt ?: out.closedAt)
+            }
+            out
         }
         noteDao.insertAll(merged)
     }
+
+    /**
+     * One note as osm.org just answered it (after a post, or a refresh after a refused post).
+     * Same merge as a fetch: ping flags stay on the POI, labels and surveyAfter on the note.
+     * [completedActionId] is the queue row this answer settles; it goes in the same transaction
+     * so the merge does not re-apply its optimistic status over the server's.
+     */
+    suspend fun storeNoteFromServer(fetched: FetchedNote, completedActionId: Long? = null) = database.withTransaction {
+        completedActionId?.let { noteActionDao.delete(it) }
+        insertPois(listOf(fetched.poi))
+        insertNotes(listOf(fetched.note))
+    }
+
+    /** The optimistic status for a queued close or reopen; [OsmNote.closedAt] follows it. */
+    suspend fun setNoteStatusLocally(noteId: Long, status: NoteStatus, now: Long = System.currentTimeMillis()) {
+        noteDao.setStatus(noteId, status, if (status == NoteStatus.CLOSED) Date(now) else null)
+    }
+
+    suspend fun getNoteById(noteId: Long): OsmNote? = noteDao.getByNoteIds(listOf(noteId)).firstOrNull()
+
+    /** The comment / close / reopen requests of one note still waiting to be posted, oldest first. */
+    fun observePendingActions(noteId: Long): Flow<List<NoteActionRequest>> = noteActionDao.observeForNote(noteId)
+
+    fun noteActionDao(): NoteActionDao = noteActionDao
 
     /**
      * Store one page of notes fetched around ([lat], [lon]). In one transaction: expire note

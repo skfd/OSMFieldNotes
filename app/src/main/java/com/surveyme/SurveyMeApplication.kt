@@ -3,6 +3,7 @@ package com.surveyme
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.surveyme.data.NoteActionQueue
 import timber.log.Timber
 import java.io.File
 import java.io.FileWriter
@@ -24,6 +25,8 @@ class SurveyMeApplication : Application() {
         setupCrashHandler()
         initializeTimber()
         initializeOSMDroid()
+        // Comment / close / reopen requests left over from an offline walk go out now.
+        NoteActionQueue.get(this).start()
     }
 
     private fun initializeOSMDroid() {

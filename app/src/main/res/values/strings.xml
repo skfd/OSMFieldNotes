@@ -42,7 +42,6 @@
     <string name="osm_login_success">Logged in as %1$s</string>
     <string name="osm_login_failed">OSM login failed: %1$s</string>
     <string name="osm_logged_out_toast">Logged out of OpenStreetMap</string>
-    <string name="osm_posting_next_build">Posting comes with the next build (item 6)</string>
 
     <!-- Permissions -->
     <string name="settings_permissions">Permissions</string>

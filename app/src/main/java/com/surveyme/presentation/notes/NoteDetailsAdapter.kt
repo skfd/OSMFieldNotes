@@ -14,7 +14,8 @@ import java.util.Locale
 
 /** One row of the details sheet: a thread entry, a raw OSM tag, or a plain block of text. */
 sealed class DetailRow {
-    data class Comment(val comment: NoteComment) : DetailRow()
+    /** [pending] marks an entry built from a queued action that osm.org has not confirmed yet. */
+    data class Comment(val comment: NoteComment, val pending: Boolean = false) : DetailRow()
     data class Tag(val key: String, val value: String) : DetailRow()
     data class Text(val text: String) : DetailRow()
 }
@@ -47,7 +48,7 @@ class NoteDetailsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val row = rows[position]) {
-            is DetailRow.Comment -> (holder as CommentHolder).bind(row.comment)
+            is DetailRow.Comment -> (holder as CommentHolder).bind(row.comment, row.pending)
             is DetailRow.Text -> (holder as CommentHolder).bindText(row.text)
             is DetailRow.Tag -> (holder as TagHolder).bind(row)
         }
@@ -56,7 +57,7 @@ class NoteDetailsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     inner class CommentHolder(private val binding: ItemNoteCommentBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(comment: NoteComment) {
+        fun bind(comment: NoteComment, pending: Boolean) {
             val who = comment.author ?: "Anonymous"
             val verb = when (comment.action) {
                 NoteAction.OPENED -> "opened"
@@ -66,7 +67,8 @@ class NoteDetailsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                 NoteAction.HIDDEN -> "hidden"
             }
             binding.textHeader.visibility = View.VISIBLE
-            binding.textHeader.text = "$who $verb · ${relativeDate(comment.date.time)}"
+            binding.textHeader.text = if (pending) "$who $verb · pending" else "$who $verb · ${relativeDate(comment.date.time)}"
+            binding.root.alpha = if (pending) 0.6f else 1f
             if (comment.text.isBlank()) {
                 binding.textBody.visibility = View.GONE
             } else {
@@ -76,6 +78,7 @@ class NoteDetailsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         }
 
         fun bindText(text: String) {
+            binding.root.alpha = 1f
             binding.textHeader.visibility = View.GONE
             binding.textBody.visibility = View.VISIBLE
             binding.textBody.text = text

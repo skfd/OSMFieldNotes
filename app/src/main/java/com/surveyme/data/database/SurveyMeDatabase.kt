@@ -7,12 +7,13 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.surveyme.data.model.NoteActionRequest
 import com.surveyme.data.model.OsmNote
 import com.surveyme.data.model.Poi
 
 @Database(
-    entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class],
-    version = 4,
+    entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class],
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -21,6 +22,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
     abstract fun poiDao(): PoiDao
     abstract fun trackDao(): TrackDao
     abstract fun noteDao(): NoteDao
+    abstract fun noteActionDao(): NoteActionDao
 
     companion object {
         @Volatile
@@ -58,6 +60,18 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v5: the offline queue of comment / close / reopen requests (item 6). Rows are posted
+         * in id order and deleted once osm.org answered. Create-only; nothing existing changes.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `note_actions` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `noteId` INTEGER NOT NULL, `action` TEXT NOT NULL, `text` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `lastError` TEXT)"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -65,7 +79,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance

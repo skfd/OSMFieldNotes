@@ -83,4 +83,38 @@ class OsmNotesServiceTest {
         assertTrue(poi.notes!!.contains("[mapper at "))
         assertTrue(poi.notes!!.contains("[Anonymous at "))
     }
+
+    // Shape of the answer to POST notes/{id}/close.json: one Feature, the whole note after the change.
+    private val closeAnswer = """
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[-79.40,43.70]},
+         "properties":{"id":99,"url":"https://api.openstreetmap.org/api/0.6/notes/99.json",
+           "reopen_url":"https://api.openstreetmap.org/api/0.6/notes/99/reopen.json",
+           "date_created":"2026-09-01 08:00:00 UTC","status":"closed","closed_at":"2026-09-25 18:05:00 UTC",
+           "comments":[
+             {"date":"2026-09-01 08:00:00 UTC","uid":1,"user":"a","action":"opened","text":"Is this shop open?"},
+             {"date":"2026-09-25 18:05:00 UTC","uid":7,"user":"me","action":"closed","text":"Checked, it is gone"}
+           ]}}
+    """.trimIndent()
+
+    @Test
+    fun `parses the single feature a post answers with`() {
+        val fetched = service.parseNoteJson(closeAnswer)
+        assertNotNull(fetched)
+        val note = fetched!!.note
+        assertEquals(99L, note.noteId)
+        assertEquals(NoteStatus.CLOSED, note.status)
+        assertEquals(utc("2026-09-25 18:05:00"), note.closedAt)
+        assertEquals(2, note.comments.size)
+        assertEquals("me", note.comments[1].author)
+        assertEquals(NoteAction.CLOSED, note.comments[1].action)
+        assertEquals("Checked, it is gone", note.comments[1].text)
+        assertEquals("osm_note_99", fetched.poi.id)
+        assertEquals(43.70, fetched.poi.latitude, 1e-9)
+    }
+
+    @Test
+    fun `a non-note answer parses to null`() {
+        assertNull(service.parseNoteJson("""{"type":"FeatureCollection","features":[]}"""))
+        assertNull(service.parseNoteJson("not json"))
+    }
 }

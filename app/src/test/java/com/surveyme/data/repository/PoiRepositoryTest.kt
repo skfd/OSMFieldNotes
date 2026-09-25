@@ -31,6 +31,7 @@ class PoiRepositoryTest {
 
         every { database.poiDao() } returns poiDao
         every { database.noteDao() } returns mockk(relaxed = true)
+        every { database.noteActionDao() } returns mockk(relaxed = true)
 
         repository = PoiRepository(database, context)
     }

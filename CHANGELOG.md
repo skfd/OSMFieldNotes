@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.11 (2026-09-25)
+
+**Roadmap item 6**: "build it as far as you can" (comment, close, reopen)
+The note details sheet now posts comments, closes and reopens with the logged-in user's token: Comment opens a text dialog with Send, Close and Reopen take an optional comment, and an open note shows Comment + Close while a closed one shows Reopen. Every action is written first to a `note_actions` queue table (DB v5, create-only migration) and applied optimistically (a "pending" thread row, "N actions pending" in the header, status flipped locally for close/reopen); `NoteActionQueue` drains it oldest-first on app start, when a network with internet appears, after login and after each post, replacing the stored note with the server's answer on success, backing off (30 s to 10 min, Retry-After honoured) on network trouble, 429 and 5xx, and on any other 4xx dropping the row, refreshing the note from osm.org and toasting the server's text; a 401 also clears the login. `OsmNotesService` now uses the OAuth base URL for fetches too, so a dev-server token never reaches production. Nothing has been posted to osm.org yet: the whole path is untested until the maintainer registers an OAuth client.
+
 ## Version 1.2.10 (2026-09-25)
 
 **Roadmap item 5**: "build it as far as you can" (OSM login)

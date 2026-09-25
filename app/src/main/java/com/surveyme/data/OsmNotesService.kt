@@ -1,7 +1,9 @@
 package com.surveyme.data
 
+import com.surveyme.BuildConfig
 import com.surveyme.core.Constants
 import com.surveyme.data.model.NoteAction
+import com.surveyme.data.model.NoteActionKind
 import com.surveyme.data.model.NoteComment
 import com.surveyme.data.model.NoteStatus
 import com.surveyme.data.model.OsmNote
@@ -9,8 +11,10 @@ import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONException
 import org.json.JSONObject
 import timber.log.Timber
@@ -19,9 +23,15 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/** A non-2xx answer from osm.org or Overpass. [retryAfterSeconds] comes from the Retry-After header when present. */
-class FetchHttpException(val code: Int, val retryAfterSeconds: Long? = null) :
-    java.io.IOException("HTTP $code" + (retryAfterSeconds?.let { ", retry after ${it}s" } ?: ""))
+/**
+ * A non-2xx answer from osm.org or Overpass. [retryAfterSeconds] comes from the Retry-After
+ * header when present; [body] is the server's text when it is short and human-readable (osm.org
+ * answers a 409 with "The note 123 was closed at ..."), so the UI can show it.
+ */
+class FetchHttpException(val code: Int, val retryAfterSeconds: Long? = null, val body: String? = null) :
+    java.io.IOException(
+        "HTTP $code" + (retryAfterSeconds?.let { ", retry after ${it}s" } ?: "") + (body?.let { ": $it" } ?: "")
+    )
 
 /** One note from the API: the structured note plus the POI row that puts it on the map. */
 data class FetchedNote(val note: OsmNote, val poi: Poi)
@@ -32,12 +42,19 @@ data class FetchedNote(val note: OsmNote, val poi: Poi)
  */
 data class NotesPage(val notes: List<FetchedNote>, val truncated: Boolean)
 
-class OsmNotesService {
+/**
+ * The osm.org notes API: bbox fetch and, for a logged-in user, comment / close / reopen.
+ * [baseUrl] is [OsmAuthManager.BASE_URL] by default so a token from the dev server is never
+ * sent to production (or the other way round); `www.openstreetmap.org` serves `/api/0.6` too.
+ */
+class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
     companion object {
         const val SOURCE_NOTES = "osm_notes"
         /** The API caps a bbox query; a 2 km square in a city holds a few dozen notes. */
         const val PAGE_LIMIT = 500
         private const val DESCRIPTION_MAX = 200
+        private const val USER_AGENT = "FixMeAwesome/${BuildConfig.VERSION_NAME}"
+        private const val ERROR_BODY_MAX = 300
     }
 
     private val client = OkHttpClient.Builder()
@@ -66,12 +83,12 @@ class OsmNotesService {
         // closed=N: also return notes closed within N days. Retention in the repository assumes
         // this window, so it is spelled out rather than left to the API default (also 7).
         val closedDays = Constants.NOTE_CLOSED_RETENTION_MILLIS / (24 * 60 * 60 * 1000L)
-        val url = "https://api.openstreetmap.org/api/0.6/notes.json?bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}&limit=$PAGE_LIMIT&closed=$closedDays"
+        val url = "$baseUrl/api/0.6/notes.json?bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}&limit=$PAGE_LIMIT&closed=$closedDays"
 
         Timber.d("Fetching OSM notes from API: $url")
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "SurveyMe/1.0")
+            .header("User-Agent", USER_AGENT)
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -83,6 +100,61 @@ class OsmNotesService {
                 ?: throw java.io.IOException("OSM Notes API response body is empty")
             parseNotesJson(responseBody)
         }
+    }
+
+    /**
+     * One note by id, as the API has it now. Used to put a note back to the truth after a
+     * refused action. Throws like [fetchNotes]; null when the answer was not a note.
+     */
+    suspend fun fetchNote(noteId: Long): FetchedNote? = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$baseUrl/api/0.6/notes/$noteId.json")
+            .header("User-Agent", USER_AGENT)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw httpError(response)
+            parseNoteJson(response.body?.string() ?: throw java.io.IOException("Empty note answer"))
+        }
+    }
+
+    /**
+     * `POST /api/0.6/notes/{id}/comment|close|reopen.json` with [text] as a form field (left
+     * out when blank; the API needs text for a comment but not for close or reopen) and the
+     * user's Bearer token. The answer is the whole note after the change, parsed with the same
+     * code as a fetch, so the stored thread and status follow the server. Throws
+     * [FetchHttpException] on a non-2xx answer (409 when the note is already in that state,
+     * 401 when the token is dead) and [java.io.IOException] on network trouble.
+     */
+    suspend fun postNoteAction(
+        noteId: Long,
+        kind: NoteActionKind,
+        text: String,
+        authHeader: String
+    ): FetchedNote = withContext(Dispatchers.IO) {
+        val form = FormBody.Builder()
+        if (text.isNotBlank()) form.add("text", text.trim())
+        val request = Request.Builder()
+            .url("$baseUrl/api/0.6/notes/$noteId/${kind.apiValue}.json")
+            .header("User-Agent", USER_AGENT)
+            .header("Authorization", authHeader)
+            .post(form.build())
+            .build()
+        Timber.d("Posting ${kind.apiValue} to note $noteId at $baseUrl")
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw httpError(response)
+            val body = response.body?.string() ?: throw java.io.IOException("Empty answer to ${kind.apiValue}")
+            parseNoteJson(body) ?: throw java.io.IOException("Answer to ${kind.apiValue} was not a note")
+        }
+    }
+
+    /** The error to throw for a non-2xx [response], carrying a short plain-text body if there is one. */
+    private fun httpError(response: Response): FetchHttpException {
+        val text = runCatching { response.body?.string() }.getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.startsWith("<") }
+            ?.take(ERROR_BODY_MAX)
+        Timber.w("osm.org answered HTTP ${response.code}${text?.let { ": $it" } ?: ""}")
+        return FetchHttpException(response.code, response.header("Retry-After")?.trim()?.toLongOrNull(), text)
     }
 
     private fun calculateBoundingBox(lat: Double, lon: Double, radiusMeters: Int): DoubleArray {
@@ -106,58 +178,71 @@ class OsmNotesService {
             val jsonObject = JSONObject(jsonString)
             val features = jsonObject.optJSONArray("features") ?: return NotesPage(emptyList(), false)
             featureCount = features.length()
-
             for (i in 0 until features.length()) {
                 val feature = features.optJSONObject(i) ?: continue
-                val geometry = feature.optJSONObject("geometry")
-                val properties = feature.optJSONObject("properties")
-                if (geometry == null || properties == null) continue
-                if (geometry.optString("type") != "Point") continue
-
-                val coordinates = geometry.optJSONArray("coordinates") ?: continue
-                if (coordinates.length() < 2) continue
-                val lon = coordinates.optDouble(0)
-                val lat = coordinates.optDouble(1)
-
-                val noteId = properties.optLong("id", -1L)
-                if (noteId < 0) continue
-                val status = NoteStatus.fromApi(properties.optString("status", "open"))
-                val createdAt = parseApiDate(properties.optString("date_created", "")) ?: now
-                val closedAt = parseApiDate(properties.optString("closed_at", ""))
-
-                val comments = mutableListOf<NoteComment>()
-                val commentsArray = properties.optJSONArray("comments")
-                if (commentsArray != null) {
-                    for (j in 0 until commentsArray.length()) {
-                        val c = commentsArray.optJSONObject(j) ?: continue
-                        comments.add(
-                            NoteComment(
-                                date = parseApiDate(c.optString("date", "")) ?: createdAt,
-                                author = c.optString("user", "").takeIf { it.isNotEmpty() && c.has("user") },
-                                uid = if (c.has("uid")) c.optLong("uid").takeIf { it > 0 } else null,
-                                action = NoteAction.fromApi(c.optString("action", "")),
-                                text = c.optString("text", "")
-                            )
-                        )
-                    }
-                }
-
-                val poiId = OsmNote.poiIdFor(noteId)
-                val note = OsmNote(
-                    noteId = noteId,
-                    poiId = poiId,
-                    status = status,
-                    createdAt = createdAt,
-                    closedAt = closedAt,
-                    comments = comments,
-                    fetchedAt = now
-                )
-                notes.add(FetchedNote(note, poiFor(note, lat, lon)))
+                parseFeature(feature, now)?.let { notes.add(it) }
             }
         } catch (e: JSONException) {
             Timber.e(e, "Failed to parse OSM Notes JSON")
         }
         return NotesPage(notes, truncated = featureCount >= PAGE_LIMIT)
+    }
+
+    /** Parses the single Feature that `notes/{id}.json` and the comment/close/reopen posts answer. */
+    internal fun parseNoteJson(jsonString: String, now: Date = Date()): FetchedNote? {
+        return try {
+            parseFeature(JSONObject(jsonString), now)
+        } catch (e: JSONException) {
+            Timber.e(e, "Failed to parse OSM note JSON")
+            null
+        }
+    }
+
+    /** One GeoJSON Feature of the notes API, or null when it is not a point note. */
+    private fun parseFeature(feature: JSONObject, now: Date): FetchedNote? {
+        val geometry = feature.optJSONObject("geometry")
+        val properties = feature.optJSONObject("properties")
+        if (geometry == null || properties == null) return null
+        if (geometry.optString("type") != "Point") return null
+
+        val coordinates = geometry.optJSONArray("coordinates") ?: return null
+        if (coordinates.length() < 2) return null
+        val lon = coordinates.optDouble(0)
+        val lat = coordinates.optDouble(1)
+
+        val noteId = properties.optLong("id", -1L)
+        if (noteId < 0) return null
+        val status = NoteStatus.fromApi(properties.optString("status", "open"))
+        val createdAt = parseApiDate(properties.optString("date_created", "")) ?: now
+        val closedAt = parseApiDate(properties.optString("closed_at", ""))
+
+        val comments = mutableListOf<NoteComment>()
+        val commentsArray = properties.optJSONArray("comments")
+        if (commentsArray != null) {
+            for (j in 0 until commentsArray.length()) {
+                val c = commentsArray.optJSONObject(j) ?: continue
+                comments.add(
+                    NoteComment(
+                        date = parseApiDate(c.optString("date", "")) ?: createdAt,
+                        author = c.optString("user", "").takeIf { it.isNotEmpty() && c.has("user") },
+                        uid = if (c.has("uid")) c.optLong("uid").takeIf { it > 0 } else null,
+                        action = NoteAction.fromApi(c.optString("action", "")),
+                        text = c.optString("text", "")
+                    )
+                )
+            }
+        }
+
+        val note = OsmNote(
+            noteId = noteId,
+            poiId = OsmNote.poiIdFor(noteId),
+            status = status,
+            createdAt = createdAt,
+            closedAt = closedAt,
+            comments = comments,
+            fetchedAt = now
+        )
+        return FetchedNote(note, poiFor(note, lat, lon))
     }
 
     /**
