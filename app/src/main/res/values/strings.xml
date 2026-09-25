@@ -132,6 +132,8 @@
     <string name="settings_fixme_age_hint">Older fixmes are neither listed nor pinged. Also in the Notes tab menu.</string>
     <string name="settings_muted_items">Muted items (%1$d)</string>
     <string name="settings_muted_items_hint">Notes and fixmes muted from a ping or dismissed for now.</string>
+    <string name="settings_battery_stats">Battery stats</string>
+    <string name="settings_battery_stats_hint">This tracking session: fixes, proximity passes, fetches, pings, cadence tier and battery. The same line goes to the log every 10 minutes.</string>
     <string name="radius_km">%1$d km</string>
     <string name="radius_m">%1$d m</string>
 

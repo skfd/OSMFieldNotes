@@ -10,13 +10,17 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.surveyme.R
+import com.surveyme.core.Constants
+import com.surveyme.core.LocationCadence
 import com.surveyme.core.PreferencesManager
 import com.surveyme.core.ProximityDetector
 import com.surveyme.core.QuietHours
@@ -27,13 +31,18 @@ import com.surveyme.data.TrackManager
 import com.surveyme.presentation.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import com.surveyme.data.model.ActiveTrack
 import com.surveyme.data.model.TrackPoint
@@ -50,8 +59,14 @@ class LocationTrackingService : Service() {
         const val EXTRA_POI_ID = "com.surveyme.POI_ID"
         private const val POI_NOTIFICATION_ID_OFFSET = 2000
 
-        private const val LOCATION_INTERVAL = 5000L // 5 seconds
-        private const val FASTEST_LOCATION_INTERVAL = 2000L // 2 seconds
+        /** The ongoing notification is refreshed at most this often (a tier change refreshes it at once). */
+        private const val NOTIFICATION_REFRESH_MILLIS = 30_000L
+        /** How often the service asks the tier selector whether the fixes have gone quiet. */
+        private const val SILENCE_TICK_MILLIS = 30_000L
+        /** Battery summary line in the log. */
+        private const val SUMMARY_INTERVAL_MILLIS = 10 * 60_000L
+        /** A fetch holds the CPU at most this long; the fetcher's own timeouts are shorter. */
+        private const val FETCH_WAKE_LOCK_MILLIS = 45_000L
 
         private val _isTrackingFlow = MutableStateFlow(false)
         val isTrackingFlow: StateFlow<Boolean> = _isTrackingFlow.asStateFlow()
@@ -62,6 +77,10 @@ class LocationTrackingService : Service() {
         /** Last fix while tracking, null otherwise. Lets the UI fetch around the walker, not the map. */
         private val _lastLocationFlow = MutableStateFlow<Location?>(null)
         val lastLocationFlow: StateFlow<Location?> = _lastLocationFlow.asStateFlow()
+
+        /** Counters of the current (or last) tracking session, for Settings and the log. */
+        private val _statsFlow = MutableStateFlow(TrackingStats())
+        val statsFlow: StateFlow<TrackingStats> = _statsFlow.asStateFlow()
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -70,10 +89,22 @@ class LocationTrackingService : Service() {
     private lateinit var proximityDetector: ProximityDetector
     private lateinit var fetcher: NearbyFetcher
     private lateinit var prefs: PreferencesManager
+    private lateinit var fetchWakeLock: PowerManager.WakeLock
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val poisCache = mutableListOf<Poi>()
     private var isTracking = false
+
+    // Battery pass (item 14). All of these are touched on the main looper only.
+    private var tierSelector = LocationCadence.TierSelector()
+    private var requestedTier: LocationCadence.Tier? = null
+    private var lastCheckedLocation: Location? = null
+    private var lastCheckedAt = 0L
+    private var lastNotificationAt = 0L
+    private var lastFetchLaunchAt = 0L
+    private var fetchJob: Job? = null
+    private var silenceJob: Job? = null
+    private var summaryJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -84,6 +115,9 @@ class LocationTrackingService : Service() {
         proximityDetector = ProximityDetector()
         fetcher = PoiManager.getFetcher(this)
         prefs = PreferencesManager(this)
+        fetchWakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "surveyme:fetch")
+            .apply { setReferenceCounted(false) }
 
         createNotificationChannels()
         setupLocationCallback()
@@ -129,46 +163,21 @@ class LocationTrackingService : Service() {
     }
 
     private fun handleLocationUpdate(location: Location) {
+        val now = System.currentTimeMillis()
         Timber.d("Location update: ${location.latitude}, ${location.longitude}")
         _lastLocationFlow.value = location
-        // Create a snapshot of the POIs to avoid ConcurrentModificationException
-        // if the list is updated on a background thread while iterating
-        val currentPois = synchronized(poisCache) {
-            poisCache.filter { !it.isMuted }
+        _statsFlow.update { it.copy(fixes = it.fixes + 1, updatedAtMillis = now) }
+
+        // Cadence first, so a walker setting out gets the faster request before anything else.
+        val fix = LocationCadence.Fix(
+            location.latitude, location.longitude, location.time,
+            if (location.hasSpeed()) location.speed else null
+        )
+        tierSelector.onFix(fix)?.let { tier ->
+            applyTier(tier, "speed %.1f m/s".format(tierSelector.smoothedMps ?: fix.speedMps ?: 0f))
         }
 
-        Timber.d("POI cache size: ${currentPois.size}")
-
-        // Item 13: quiet hours suppress pings, not tracking or fetching. The detector is not
-        // called at all, so nothing is marked notified and the items ping once the window ends.
-        // The Notifications switch in Settings is the same kind of gate.
-        val quiet = QuietHours.isQuiet(prefs.quietHours)
-        if (quiet || !prefs.areNotificationsEnabled) {
-            Timber.d("Pings suppressed (${if (quiet) "quiet hours" else "notifications off"})")
-        } else if (currentPois.isNotEmpty()) {
-            // Check proximity to POIs
-            val pingRadius = prefs.pingRadiusMeters
-            Timber.d("Checking proximity to ${currentPois.size} POIs...")
-
-            // Log distances to all POIs for debugging
-            currentPois.forEach { poi ->
-                val distance = poi.distanceTo(location.latitude, location.longitude)
-                Timber.d("Distance to ${poi.name}: ${distance}m (radius: ${proximityDetector.radiusFor(poi, pingRadius)}m)")
-            }
-
-            proximityDetector.checkProximity(
-                location.latitude,
-                location.longitude,
-                currentPois,
-                pingRadius
-            ) { poi, distance ->
-                Timber.d("Proximity notification triggered for ${poi.name} at ${distance}m")
-                showPoiNotification(poi, distance)
-                markPoiAsVisited(poi.id)
-            }
-        } else {
-            Timber.w("No POIs in cache for proximity detection")
-        }
+        checkProximity(location, now)
 
         // --- Track Recording Logic ---
         val currentTrack = _activeTrackFlow.value
@@ -205,28 +214,129 @@ class LocationTrackingService : Service() {
         )
         // ------------------------------
 
-        // Update the ongoing notification with current location
-        updateNotification(location)
+        // The ongoing notification is one IPC per refresh; a fix every 5 s does not need one each.
+        if (now - lastNotificationAt >= NOTIFICATION_REFRESH_MILLIS) updateNotification(location)
 
-        refetchIfMoved(location)
+        refetchIfMoved(location, now)
+    }
+
+    /**
+     * The proximity pass walks every pingable POI. It is skipped when the fix is within a few
+     * metres of the last one checked (unless a minute passed, so cooldowns and fresh fetches
+     * are seen), when the fix is too coarse to trust, in quiet hours, and with pings off.
+     */
+    private fun checkProximity(location: Location, now: Long) {
+        val moved = lastCheckedLocation?.distanceTo(location)
+        val since = if (lastCheckedLocation == null) null else now - lastCheckedAt
+        if (!LocationCadence.shouldCheckProximity(moved, since)) {
+            Timber.v("Proximity pass skipped: moved ${moved?.toInt()}m in ${since?.div(1000)}s")
+            return
+        }
+        val pingRadius = prefs.pingRadiusMeters
+        val accuracy = if (location.hasAccuracy()) location.accuracy else null
+        if (!LocationCadence.isFixUsableForPings(accuracy, pingRadius)) {
+            Timber.d("Proximity pass skipped: fix accuracy ${accuracy?.toInt()}m, ping radius ${pingRadius}m")
+            return
+        }
+        lastCheckedLocation = location
+        lastCheckedAt = now
+        _statsFlow.update { it.copy(proximityPasses = it.proximityPasses + 1) }
+
+        // Item 13: quiet hours suppress pings, not tracking or fetching. The detector is not
+        // called at all, so nothing is marked notified and the items ping once the window ends.
+        // The Notifications switch in Settings is the same kind of gate.
+        val quiet = QuietHours.isQuiet(prefs.quietHours)
+        if (quiet || !prefs.areNotificationsEnabled) {
+            Timber.d("Pings suppressed (${if (quiet) "quiet hours" else "notifications off"})")
+            return
+        }
+        // Create a snapshot of the POIs to avoid ConcurrentModificationException
+        // if the list is updated on a background thread while iterating
+        val currentPois = synchronized(poisCache) {
+            poisCache.filter { !it.isMuted }
+        }
+        if (currentPois.isEmpty()) {
+            Timber.d("No POIs in cache for proximity detection")
+            return
+        }
+        proximityDetector.checkProximity(
+            location.latitude,
+            location.longitude,
+            currentPois,
+            pingRadius
+        ) { poi, distance ->
+            Timber.i("Ping: ${poi.name} at ${distance.toInt()}m")
+            _statsFlow.update { it.copy(pings = it.pings + 1) }
+            showPoiNotification(poi, distance)
+            markPoiAsVisited(poi.id)
+        }
     }
 
     /**
      * Fetch follows the walker: when we are more than half the fetch radius from the last fetch
      * centre (or the last fetch is stale) refetch notes and fixmes around here. The fetcher owns
-     * the rate limits and never runs two fetches at once; the pre-check keeps this cheap on the
-     * main looper. The POI cache updates by itself through the Room flow in loadPois().
+     * the rate limits and never runs two fetches at once; notes and fixmes go in one call, so one
+     * coroutine and one wake window cover both. This launches at most once a minute and never
+     * while a fetch is running; the pre-check reads prefs only, no database. The POI cache
+     * updates by itself through the Room flow in loadPois().
      */
-    private fun refetchIfMoved(location: Location) {
+    private fun refetchIfMoved(location: Location, now: Long) {
         if (!isTracking) return
-        if (!fetcher.wantsRefetch(location.latitude, location.longitude)) return
-        serviceScope.launch {
+        if (fetchJob?.isActive == true) return
+        if (now - lastFetchLaunchAt < Constants.FETCH_MIN_INTERVAL_MILLIS) return
+        if (!fetcher.wantsRefetch(location.latitude, location.longitude, now)) return
+        lastFetchLaunchAt = now
+        _statsFlow.update { it.copy(fetches = it.fetches + 1) }
+        // Held only for the fetch: fix handling is sub-millisecond on a looper fused location
+        // already woke, but a network round trip must not stall in a CPU nap half way through.
+        fetchWakeLock.acquire(FETCH_WAKE_LOCK_MILLIS)
+        fetchJob = serviceScope.launch {
             try {
                 fetcher.fetch(location.latitude, location.longitude, NearbyFetcher.Trigger.WALKER)
             } catch (e: Exception) {
                 Timber.e(e, "Walker refetch failed")
+            } finally {
+                if (fetchWakeLock.isHeld) fetchWakeLock.release()
             }
         }
+    }
+
+    /** Requests fused location for [tier]. A request with the same callback replaces the previous one. */
+    private fun applyTier(tier: LocationCadence.Tier, why: String) {
+        if (tier == requestedTier) return
+        val previous = requestedTier
+        requestedTier = tier
+        lastCheckedLocation = null  // the next fix runs the proximity pass whatever it moved
+        _statsFlow.update { it.copy(tier = tier, tierChanges = if (previous == null) it.tierChanges else it.tierChanges + 1) }
+        Timber.i(
+            "Cadence: ${previous?.name?.lowercase() ?: "start"} -> ${tier.name.lowercase()} ($why): " +
+                "every ${tier.intervalMillis / 1000}s, ${if (tier.highAccuracy) "high accuracy" else "balanced power"}, " +
+                "min ${tier.minDisplacementMeters.toInt()}m"
+        )
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            Timber.w("Cadence: no location permission, not requesting updates")
+            return
+        }
+        val priority = if (tier.highAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+        val request = LocationRequest.Builder(priority, tier.intervalMillis)
+            .setMinUpdateIntervalMillis(tier.fastestIntervalMillis)
+            .setMinUpdateDistanceMeters(tier.minDisplacementMeters)
+            .build()
+        fusedLocationClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
+        _lastLocationFlow.value?.let { updateNotification(it) }
+    }
+
+    private fun batteryPercent(): Int? {
+        val manager = getSystemService(BATTERY_SERVICE) as? BatteryManager ?: return null
+        // Some OEMs answer Integer.MIN_VALUE instead of a percentage.
+        return manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
+    }
+
+    private fun logSummary() {
+        _statsFlow.update { it.copy(batteryNow = batteryPercent(), updatedAtMillis = System.currentTimeMillis()) }
+        Timber.i("Battery: ${_statsFlow.value.describe()}")
     }
 
     private fun loadPois() {
@@ -277,27 +387,36 @@ class LocationTrackingService : Service() {
         _isTrackingFlow.value = true
         _activeTrackFlow.value = ActiveTrack() // Reset track
 
+        val now = System.currentTimeMillis()
+        val battery = batteryPercent()
+        _statsFlow.value = TrackingStats(
+            active = true, startedAtMillis = now, batteryAtStart = battery, batteryNow = battery, updatedAtMillis = now
+        )
+        tierSelector = LocationCadence.TierSelector()
+        requestedTier = null
+        lastCheckedLocation = null
+        lastFetchLaunchAt = 0L
+        lastNotificationAt = 0L
+
         // Start as foreground service
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
 
-        // Request location updates
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            val locationRequest = LocationRequest.create().apply {
-                interval = LOCATION_INTERVAL
-                fastestInterval = FASTEST_LOCATION_INTERVAL
-                priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            }
+        // Request location updates at the walking cadence; the fixes decide from there.
+        applyTier(tierSelector.tier, "tracking started")
 
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                Looper.getMainLooper()
-            )
+        silenceJob = serviceScope.launch {
+            while (isActive) {
+                delay(SILENCE_TICK_MILLIS)
+                val tier = tierSelector.onSilence(System.currentTimeMillis()) ?: continue
+                withContext(Dispatchers.Main) { applyTier(tier, "no fix for ${LocationCadence.Tier.STATIONARY.holdBeforeMillis / 60_000} min") }
+            }
+        }
+        summaryJob = serviceScope.launch {
+            while (isActive) {
+                delay(SUMMARY_INTERVAL_MILLIS)
+                logSummary()
+            }
         }
     }
 
@@ -308,6 +427,10 @@ class LocationTrackingService : Service() {
         isTracking = false
         _isTrackingFlow.value = false
         _lastLocationFlow.value = null
+        silenceJob?.cancel(); silenceJob = null
+        summaryJob?.cancel(); summaryJob = null
+        logSummary()
+        _statsFlow.update { it.copy(active = false) }
 
         // Save track before resetting if it has points
         val currentTrack = _activeTrackFlow.value
@@ -319,7 +442,7 @@ class LocationTrackingService : Service() {
                     val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
                     val dateString = dateFormat.format(java.util.Date(currentTrack.startTime))
                     val defaultName = "Track - $dateString"
-                    
+
                     trackRepository.saveActiveTrack(currentTrack, defaultName)
                     Timber.d("Successfully saved track: $defaultName with ${currentTrack.points.size} points")
                 } catch (e: Exception) {
@@ -334,6 +457,7 @@ class LocationTrackingService : Service() {
         }
 
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        requestedTier = null
         stopForeground(true)
         stopSelf()
     }
@@ -366,9 +490,11 @@ class LocationTrackingService : Service() {
     }
 
     private fun updateNotification(location: Location) {
+        lastNotificationAt = System.currentTimeMillis()
+        val tier = (requestedTier ?: tierSelector.tier).name.lowercase()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Survey Me - Tracking")
-            .setContentText("Location: ${location.latitude.format(5)}, ${location.longitude.format(5)}")
+            .setContentText("$tier · ${location.latitude.format(5)}, ${location.longitude.format(5)}")
             .setSmallIcon(R.drawable.ic_home)
             .setOngoing(true)
             .build()
@@ -450,6 +576,7 @@ class LocationTrackingService : Service() {
         super.onDestroy()
         Timber.d("LocationTrackingService onDestroy")
         serviceScope.cancel()
+        if (fetchWakeLock.isHeld) fetchWakeLock.release()
         if (isTracking) {
             fusedLocationClient.removeLocationUpdates(locationCallback)
         }

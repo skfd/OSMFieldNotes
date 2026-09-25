@@ -136,6 +136,8 @@ class SurveyMeApplication : Application() {
         private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
 
         override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+            // Every line opens the file; per-POI verbose lines on every fix are not worth that.
+            if (priority == Log.VERBOSE) return
             try {
                 if (!logFile.exists()) {
                     logFile.createNewFile()

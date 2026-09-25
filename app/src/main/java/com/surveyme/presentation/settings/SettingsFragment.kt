@@ -181,6 +181,14 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 }
             }
         }
+        // Battery pass (item 14): the service's counters, live while it runs, frozen after.
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LocationTrackingService.statsFlow.collect { stats ->
+                    binding.textBatteryStats.text = stats.describe()
+                }
+            }
+        }
     }
 
     private fun classCheckboxes() = listOf(

@@ -30,6 +30,7 @@ import com.surveyme.core.NoteLabels
 import com.surveyme.core.PreferencesManager
 import com.surveyme.data.PoiManager
 import com.surveyme.databinding.FragmentNotesBinding
+import com.surveyme.service.LocationTrackingService
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import android.location.LocationListener
@@ -71,7 +72,8 @@ class NotesFragment : Fragment() {
         setupFilterChips()
         setupMenu()
         observeViewModel()
-        setupLocationUpdates()
+        seedLocation()
+        observeServiceLocation()
         
         // Check if we should auto-open a specific note (from map marker click)
         checkForPendingNote()
@@ -234,58 +236,76 @@ class NotesFragment : Fragment() {
         }
     }
 
-    private fun setupLocationUpdates() {
-        if (ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-                requireContext(),
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            locationManager = requireContext().getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager
-            
-            // Get last known location quickly
-            val lastLocation = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            
-            if (lastLocation != null) {
-                viewModel.updateLocation(lastLocation)
-            }
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-            // Start updates
-            locationListener = object : LocationListener {
-                override fun onLocationChanged(location: Location) {
-                    viewModel.updateLocation(location)
-                }
-                override fun onProviderEnabled(provider: String) {}
-                override fun onProviderDisabled(provider: String) {}
-            }
-
-            try {
-                // Request updates with fairly frequent intervals since we are walking
-                locationManager?.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    5000L, // 5 seconds
-                    2f, // 2 meters
-                    locationListener!!,
-                    Looper.getMainLooper()
-                )
-                
-                // Also listen to network provider as fallback
-                locationManager?.requestLocationUpdates(
-                    LocationManager.NETWORK_PROVIDER,
-                    5000L,
-                    2f,
-                    locationListener!!,
-                    Looper.getMainLooper()
-                )
-            } catch (e: Exception) {
-                Timber.e(e, "Error requesting location updates")
-            }
-        } else {
+    /** The platform's last known fix, so the distances are right before the first update. */
+    private fun seedLocation() {
+        if (!hasLocationPermission()) {
             Timber.d("Location permission not granted for NotesFragment")
+            return
         }
+        locationManager = requireContext().getSystemService(android.content.Context.LOCATION_SERVICE) as LocationManager
+        val lastLocation = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        if (lastLocation != null) viewModel.updateLocation(lastLocation)
+    }
+
+    /**
+     * While the tracking service runs, its fixes feed the list; this tab then holds no GPS
+     * client of its own (battery pass, item 14). The listener below only runs when the service
+     * does not, and only between onResume and onPause: before this it was removed in
+     * onDestroyView, so the Notes tab kept the GPS at 5 s / 2 m while the app sat in the background.
+     */
+    private fun observeServiceLocation() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                LocationTrackingService.lastLocationFlow.collect { location ->
+                    if (location != null) viewModel.updateLocation(location)
+                }
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                LocationTrackingService.isTrackingFlow.collect { tracking ->
+                    if (tracking) stopOwnLocationUpdates() else startOwnLocationUpdates()
+                }
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopOwnLocationUpdates()
+    }
+
+    private fun startOwnLocationUpdates() {
+        if (locationListener != null || !hasLocationPermission()) return
+        val manager = locationManager ?: return
+        val listener = object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                viewModel.updateLocation(location)
+            }
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }
+        try {
+            // On screen and not tracking: a fix every 10 s / 5 m is plenty for a distance column.
+            manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10_000L, 5f, listener, Looper.getMainLooper())
+            manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10_000L, 5f, listener, Looper.getMainLooper())
+            locationListener = listener
+            Timber.d("NotesFragment: own location updates started")
+        } catch (e: Exception) {
+            Timber.e(e, "Error requesting location updates")
+        }
+    }
+
+    private fun stopOwnLocationUpdates() {
+        val listener = locationListener ?: return
+        locationManager?.removeUpdates(listener)
+        locationListener = null
+        Timber.d("NotesFragment: own location updates stopped")
     }
 
     private fun showNoteDetails(noteItem: NoteItem) {
@@ -300,9 +320,7 @@ class NotesFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        locationListener?.let { listener ->
-            locationManager?.removeUpdates(listener)
-        }
+        stopOwnLocationUpdates()
         _binding = null
     }
 }
