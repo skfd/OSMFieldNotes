@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -96,8 +97,8 @@ class OsmAuthManager private constructor(context: Context) {
     fun authHeader(): String? = prefs.getString(KEY_TOKEN, null)?.let { "Bearer $it" }
 
     /**
-     * Opens the osm.org authorize page. Returns false (with the reason logged) when there is no
-     * client id or no browser; the caller shows the message.
+     * Opens the osm.org authorize page. [LoginLaunch.NotConfigured] when there is no client id,
+     * [LoginLaunch.NoBrowser] when nothing can open the URL; the caller shows the message.
      */
     fun login(activity: Activity): LoginLaunch {
         if (!isConfigured) return LoginLaunch.NotConfigured
@@ -277,7 +278,7 @@ class OsmAuthManager private constructor(context: Context) {
         } catch (e: Exception) {
             Timber.e(e, "Encrypted prefs unreadable; starting a fresh file")
             runCatching {
-                context.deleteSharedPreferences(PREFS_FILE)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) context.deleteSharedPreferences(PREFS_FILE)
                 File(context.applicationInfo.dataDir, "shared_prefs/$PREFS_FILE.xml").delete()
             }
             open()
