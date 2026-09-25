@@ -3,9 +3,12 @@
     <cloud-backup>
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="device.xml"/>
+        <!-- OSM token is bound to this device's keystore; restored ciphertext cannot be read. -->
+        <exclude domain="sharedpref" path="osm_auth.xml"/>
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="."/>
         <exclude domain="sharedpref" path="device.xml"/>
+        <exclude domain="sharedpref" path="osm_auth.xml"/>
     </device-transfer>
 </data-extraction-rules>

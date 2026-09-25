@@ -43,6 +43,21 @@ sdk.dir=C:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 
 *Tip: You can find your SDK path in Android Studio under **Settings > Languages & Frameworks > Android SDK**.*
 
+### OSM login (optional)
+
+Logging in to OpenStreetMap needs an OAuth 2 client id in the same file. Register one at
+`https://www.openstreetmap.org/oauth2/applications/new` with redirect URI
+`fixmeawesome://oauth/callback` (exactly), "Confidential application" unchecked, and the
+`write_notes` and `read_prefs` permissions; then add:
+
+```properties
+OSM_OAUTH_CLIENT_ID=paste_the_client_id_here
+```
+
+`local.properties.example` lists the optional keys (`OSM_OAUTH_REDIRECT_URI`,
+`OSM_OAUTH_BASE_URL` for the sandbox). Without a client id the app builds and runs; the
+login button just says the id is missing.
+
 ## Step 4: Sync Gradle
 
 1.  Click the **Sync Project with Gradle Files** button (elephant icon) in the toolbar.

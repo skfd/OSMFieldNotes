@@ -21,6 +21,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.color.MaterialColors
 import com.surveyme.R
+import com.surveyme.data.OsmAuthManager
 import com.surveyme.data.PoiManager
 import com.surveyme.data.model.NoteAction
 import com.surveyme.data.model.NoteStatus
@@ -196,17 +197,23 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
     }
 
     /**
-     * Item 6 will post comment / close / reopen. The row is laid out and the buttons that fit the
-     * note's status are chosen here, but the row stays hidden until OSM login (item 5) exists.
+     * Item 6 will post comment / close / reopen. The row shows for a logged-in user (item 5) with
+     * the buttons that fit the note's status; until item 6 lands, a tap only says so.
      */
     private fun showActions(note: OsmNote) {
-        val loggedIn = false // item 5
+        val loggedIn = OsmAuthManager.get(requireContext()).isLoggedIn
         binding.buttonCloseNote.visibility = if (note.isOpen) View.VISIBLE else View.GONE
         binding.buttonReopen.visibility = if (note.status == NoteStatus.CLOSED) View.VISIBLE else View.GONE
         binding.buttonComment.isEnabled = loggedIn
         binding.buttonCloseNote.isEnabled = loggedIn
         binding.buttonReopen.isEnabled = loggedIn
         binding.actionRow.visibility = if (loggedIn && note.status != NoteStatus.HIDDEN) View.VISIBLE else View.GONE
+        val notYet = View.OnClickListener {
+            Toast.makeText(context, R.string.osm_posting_next_build, Toast.LENGTH_SHORT).show()
+        }
+        binding.buttonComment.setOnClickListener(notYet)
+        binding.buttonCloseNote.setOnClickListener(notYet)
+        binding.buttonReopen.setOnClickListener(notYet)
     }
 
     /** The distance the list computed, or one from the last known fix when opened from a ping or marker. */

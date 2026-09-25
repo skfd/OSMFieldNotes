@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.10 (2026-09-25)
+
+**Roadmap item 5**: "build it as far as you can" (OSM login)
+`OsmAuthManager` runs OAuth 2.0 Authorization Code with PKCE (S256, public client, scopes `write_notes read_prefs`) against `/oauth2/authorize` and `/oauth2/token`, opens the authorize page in a Chrome Custom Tab and returns through a `fixmeawesome://oauth/callback` intent-filter on MainActivity; the token, display name and uid (from `user/details.json`) live in EncryptedSharedPreferences, excluded from backup. Settings has an account card ("Logged in as ..." with Log out, or "Log in to OpenStreetMap"), and the note details action row now follows real login state (posting itself is item 6). The client id is read from `local.properties` (`OSM_OAUTH_CLIENT_ID`, see `local.properties.example`); no client is registered yet, so the whole flow is untested against osm.org until the maintainer registers one, and without an id the login button says so instead of launching.
+
 ## Version 1.2.9 (2026-09-25)
 
 **Roadmap item 4**: "build it as far as you can" (note details rework)

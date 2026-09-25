@@ -30,6 +30,20 @@
     <string name="map_style_default">Standard</string>
     <string name="app_version">Version</string>
 
+    <!-- OSM account -->
+    <string name="settings_osm_account">OpenStreetMap account</string>
+    <string name="osm_logged_out">Not logged in</string>
+    <string name="osm_logged_in_as">Logged in as %1$s</string>
+    <string name="osm_login">Log in to OpenStreetMap</string>
+    <string name="osm_logout">Log out</string>
+    <string name="osm_login_not_configured">No OSM client id configured. Register one at osm.org and set OSM_OAUTH_CLIENT_ID in local.properties.</string>
+    <string name="osm_login_no_browser">No browser to open the OSM login page</string>
+    <string name="osm_login_opening">Opening osm.org…</string>
+    <string name="osm_login_success">Logged in as %1$s</string>
+    <string name="osm_login_failed">OSM login failed: %1$s</string>
+    <string name="osm_logged_out_toast">Logged out of OpenStreetMap</string>
+    <string name="osm_posting_next_build">Posting comes with the next build (item 6)</string>
+
     <!-- Permissions -->
     <string name="settings_permissions">Permissions</string>
     <string name="location_permission">Location</string>

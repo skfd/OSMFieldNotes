@@ -2,4 +2,6 @@
 <full-backup-content>
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="device.xml"/>
+    <!-- OSM token is bound to this device's keystore; restored ciphertext cannot be read. -->
+    <exclude domain="sharedpref" path="osm_auth.xml"/>
 </full-backup-content>

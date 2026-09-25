@@ -10,6 +10,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.surveyme.BuildConfig
 import com.surveyme.R
 import com.surveyme.SurveyMeApplication
@@ -21,6 +24,8 @@ import com.surveyme.presentation.debug.LogViewerDialog
 import timber.log.Timber
 import com.surveyme.data.PoiManager
 import com.surveyme.data.NearbyFetcher
+import com.surveyme.data.OsmAuthManager
+import com.surveyme.data.OsmAuthState
 import com.surveyme.core.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,6 +66,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         permissionManager = PermissionManager(requireContext())
 
         setupSettings()
+        setupOsmAccount()
         setupPermissions()
         setupPoiSection()
         setupDebugSection()
@@ -93,6 +99,44 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
             switchDrawTrack.setOnCheckedChangeListener { _, isChecked ->
                 preferencesManager.isDrawTrackEnabled = isChecked
+            }
+        }
+    }
+
+    private fun setupOsmAccount() {
+        val auth = OsmAuthManager.get(requireContext())
+        binding.buttonOsmLogin.setOnClickListener {
+            when (auth.login(requireActivity())) {
+                OsmAuthManager.LoginLaunch.Launched ->
+                    Toast.makeText(context, R.string.osm_login_opening, Toast.LENGTH_SHORT).show()
+                OsmAuthManager.LoginLaunch.NotConfigured ->
+                    Toast.makeText(context, R.string.osm_login_not_configured, Toast.LENGTH_LONG).show()
+                OsmAuthManager.LoginLaunch.NoBrowser ->
+                    Toast.makeText(context, R.string.osm_login_no_browser, Toast.LENGTH_LONG).show()
+            }
+        }
+        binding.buttonOsmLogout.setOnClickListener {
+            viewLifecycleOwner.lifecycleScope.launch {
+                auth.logout()
+                Toast.makeText(context, R.string.osm_logged_out_toast, Toast.LENGTH_SHORT).show()
+            }
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                auth.state.collect { state ->
+                    when (state) {
+                        is OsmAuthState.LoggedIn -> {
+                            binding.textOsmAccount.text = getString(R.string.osm_logged_in_as, state.displayName)
+                            binding.buttonOsmLogin.visibility = View.GONE
+                            binding.buttonOsmLogout.visibility = View.VISIBLE
+                        }
+                        OsmAuthState.LoggedOut -> {
+                            binding.textOsmAccount.text = getString(R.string.osm_logged_out)
+                            binding.buttonOsmLogin.visibility = View.VISIBLE
+                            binding.buttonOsmLogout.visibility = View.GONE
+                        }
+                    }
+                }
             }
         }
     }

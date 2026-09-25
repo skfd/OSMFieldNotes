@@ -1,8 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-parcelize")
     id("com.google.devtools.ksp")
 }
+
+// OSM OAuth 2 client settings live in local.properties (gitignored); see local.properties.example.
+// A missing file or key leaves the client id blank and the login button explains itself.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+fun localProperty(key: String, default: String): String =
+    localProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() } ?: default
 
 
 android {
@@ -13,13 +24,17 @@ android {
         applicationId = "com.surveyme"
         minSdk = 23
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.2.9"
+        versionCode = 18
+        versionName = "1.2.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("String", "OSM_OAUTH_CLIENT_ID", "\"${localProperty("OSM_OAUTH_CLIENT_ID", "")}\"")
+        buildConfigField("String", "OSM_OAUTH_REDIRECT_URI", "\"${localProperty("OSM_OAUTH_REDIRECT_URI", "fixmeawesome://oauth/callback")}\"")
+        buildConfigField("String", "OSM_OAUTH_BASE_URL", "\"${localProperty("OSM_OAUTH_BASE_URL", "https://www.openstreetmap.org")}\"")
     }
 
     buildTypes {
@@ -105,6 +120,10 @@ dependencies {
 
     // OkHttp for network requests
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // OSM login: Chrome Custom Tab for the authorize page, encrypted prefs for the token
+    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Room database
     val roomVersion = "2.8.4"

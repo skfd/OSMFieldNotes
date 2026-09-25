@@ -35,3 +35,6 @@
 -keepnames class * extends java.io.Serializable
 # Note comments and labels are stored as Gson JSON in Room; field and enum names must survive R8.
 -keep class com.surveyme.data.model.** { *; }
+
+# Tink (pulled in by security-crypto) references errorprone annotations that are not on the classpath.
+-dontwarn com.google.errorprone.annotations.**

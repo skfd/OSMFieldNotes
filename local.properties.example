@@ -1,0 +1,17 @@
+# Copy to local.properties (gitignored). Android Studio writes sdk.dir itself.
+sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
+
+# OSM login (roadmap item 5). Register a client at
+# https://www.openstreetmap.org/oauth2/applications/new with
+#   Redirect URI:  fixmeawesome://oauth/callback   (exactly, no trailing slash)
+#   Confidential application: unchecked (public client, no secret)
+#   Permissions:   write_notes, read_prefs
+# then paste the Client ID here. Blank = the login button explains itself.
+#OSM_OAUTH_CLIENT_ID=
+
+# Only if you registered a different redirect URI (must match the manifest intent-filter).
+#OSM_OAUTH_REDIRECT_URI=fixmeawesome://oauth/callback
+
+# Point auth and user/details at the sandbox instead of production (needs a separate
+# account and client registration there). Notes fetching still uses api.openstreetmap.org.
+#OSM_OAUTH_BASE_URL=https://master.apis.dev.openstreetmap.org
