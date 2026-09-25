@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import com.surveyme.service.LocationTrackingService
 
 class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
@@ -117,15 +118,19 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         binding.buttonFindOsmNotes.isEnabled = false
         binding.buttonFindOsmNotes.alpha = 0.5f
 
+        // While tracking the walker's position is the centre, otherwise the last map position.
+        // Fetching around a stale map position mid-walk would expire everything around the walker.
+        val walker = if (LocationTrackingService.isTrackingFlow.value) LocationTrackingService.lastLocationFlow.value else null
         val lastLocation = preferencesManager.getLastMapPosition()
-        val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
-        val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+        val lat = walker?.latitude ?: lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
+        val lon = walker?.longitude ?: lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+        val where = if (walker != null) "your position" else "map position"
         val fetcher = PoiManager.getFetcher(requireContext())
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Searching for OSM Notes and FIXMEs around map position...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Searching for OSM Notes and FIXMEs around $where...", Toast.LENGTH_SHORT).show()
                 }
 
                 // Manual: skips the movement check and minimum interval, still honours a backoff.

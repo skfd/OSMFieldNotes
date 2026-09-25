@@ -67,14 +67,20 @@ class NearbyFetcher(
     private val notesGate = Gate(OsmNotesService.SOURCE_NOTES)
     private val fixmesGate = Gate(OverpassService.SOURCE_FIXME)
     private val running = Mutex()
+    private var legacyPurged = false
 
     /**
      * Cheap pre-check for the tracking service so it does not launch a coroutine on every
      * location update. True when either source would want a refetch here, before rate limits.
      */
-    fun wantsRefetch(lat: Double, lon: Double, now: Long = System.currentTimeMillis()): Boolean =
-        movedOrStale(notesGate.source, lat, lon, now) != null ||
-            movedOrStale(fixmesGate.source, lat, lon, now) != null
+    fun wantsRefetch(lat: Double, lon: Double, now: Long = System.currentTimeMillis()): Boolean {
+        if (isNoPosition(lat, lon)) return false
+        // A source counts only when its gate is open (no min interval or backoff pending) and it
+        // has moved or gone stale; otherwise a backed-off source would launch a no-op every tick.
+        return listOf(notesGate, fixmesGate).any { gate ->
+            now >= gate.nextAllowedAt && movedOrStale(gate.source, lat, lon, now) != null
+        }
+    }
 
     /**
      * Fetch both sources around ([lat], [lon]) if their gates allow. Never throws.
@@ -85,13 +91,22 @@ class NearbyFetcher(
         trigger: Trigger,
         radiusMeters: Int = Constants.FETCH_RADIUS_METERS
     ): Report {
+        if (isNoPosition(lat, lon)) {
+            // The map's default centre before any position was ever saved; fetching there would
+            // store 0,0 as the centre and expire everything real.
+            Timber.d("Fetch ($trigger) skipped: no position yet")
+            return Report(Outcome.Skipped("no position"), Outcome.Skipped("no position"))
+        }
         if (!running.tryLock()) {
             Timber.d("Fetch ($trigger) skipped: another fetch is running")
             return Report(Outcome.Busy, Outcome.Busy)
         }
         try {
-            // Rows left by earlier builds under the old source tag; harmless once gone.
-            repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
+            if (!legacyPurged) {
+                // Rows left by earlier builds under the old source tag; harmless once gone.
+                repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
+                legacyPurged = true
+            }
 
             val notes = fetchSource(notesGate, lat, lon, trigger, radiusMeters) {
                 notesService.fetchNotes(lat, lon, radiusMeters)
@@ -161,6 +176,9 @@ class NearbyFetcher(
         Timber.w("${gate.source}: fetch failed ($message), next try in ${gate.backoffMillis / 1000}s")
         return Outcome.Failed(message, gate.backoffMillis)
     }
+
+    private fun isNoPosition(lat: Double, lon: Double) =
+        lat == Constants.DEFAULT_MAP_CENTER_LAT && lon == Constants.DEFAULT_MAP_CENTER_LON
 
     /** Why this source wants a refetch at the point, or null if the last fetch still covers it. */
     private fun movedOrStale(source: String, lat: Double, lon: Double, now: Long): String? {

@@ -413,8 +413,14 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
             try {
                 // Notes and fixmes around the last map position, through the shared gated fetcher:
                 // a tab switch a minute after the last fetch, or without moving, does not hit the APIs.
-                Timber.d("Map load fetch around $lat, $lon")
-                fetcher.fetch(lat, lon, NearbyFetcher.Trigger.MAP_LOAD)
+                // While tracking, the service fetches around the walker; a fetch around a stale map
+                // position would expire the walker's set, so leave it alone.
+                if (LocationTrackingService.isTrackingFlow.value) {
+                    Timber.d("Map load fetch skipped: tracking owns the fetch centre")
+                } else {
+                    Timber.d("Map load fetch around $lat, $lon")
+                    fetcher.fetch(lat, lon, NearbyFetcher.Trigger.MAP_LOAD)
+                }
 
                 // Now load and display POIs
                 repository.getAllActivePois().collectLatest { pois ->

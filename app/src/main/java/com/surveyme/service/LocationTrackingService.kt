@@ -56,6 +56,10 @@ class LocationTrackingService : Service() {
 
         private val _activeTrackFlow = MutableStateFlow(ActiveTrack())
         val activeTrackFlow: StateFlow<ActiveTrack> = _activeTrackFlow.asStateFlow()
+
+        /** Last fix while tracking, null otherwise. Lets the UI fetch around the walker, not the map. */
+        private val _lastLocationFlow = MutableStateFlow<Location?>(null)
+        val lastLocationFlow: StateFlow<Location?> = _lastLocationFlow.asStateFlow()
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -122,6 +126,7 @@ class LocationTrackingService : Service() {
 
     private fun handleLocationUpdate(location: Location) {
         Timber.d("Location update: ${location.latitude}, ${location.longitude}")
+        _lastLocationFlow.value = location
         // Create a snapshot of the POIs to avoid ConcurrentModificationException
         // if the list is updated on a background thread while iterating
         val currentPois = synchronized(poisCache) {
@@ -289,6 +294,7 @@ class LocationTrackingService : Service() {
         Timber.d("Stopping location tracking")
         isTracking = false
         _isTrackingFlow.value = false
+        _lastLocationFlow.value = null
 
         // Save track before resetting if it has points
         val currentTrack = _activeTrackFlow.value
