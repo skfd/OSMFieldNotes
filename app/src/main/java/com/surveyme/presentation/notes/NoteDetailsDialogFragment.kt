@@ -147,21 +147,24 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
             else -> renderPlain(poi)
         }
 
-        osmUrl = note?.url ?: osmUrlFromPoiId(poi.id)
+        // A placeholder (queued create) has no page on osm.org yet.
+        osmUrl = note?.takeIf { !it.isPending }?.url ?: osmUrlFromPoiId(poi.id)
         binding.buttonOpenOsm.visibility = if (osmUrl != null) View.VISIBLE else View.GONE
     }
 
     private fun renderNote(note: OsmNote, pending: List<NoteActionRequest>, inFlight: Boolean) {
         setStatus(
-            when (note.status) {
-                NoteStatus.OPEN -> "OPEN"
-                NoteStatus.CLOSED -> "CLOSED"
-                NoteStatus.HIDDEN -> "HIDDEN"
+            when {
+                note.isPending -> "PENDING"
+                note.status == NoteStatus.OPEN -> "OPEN"
+                note.status == NoteStatus.CLOSED -> "CLOSED"
+                else -> "HIDDEN"
             },
-            highlighted = note.isOpen
+            highlighted = note.isOpen && !note.isPending
         )
         binding.textDates.text = buildString {
             append("Created ${dateFormat.format(note.createdAt)}")
+            if (note.isPending) append(" · waiting to be posted to osm.org")
             note.closedAt?.let { append(" · closed ${dateFormat.format(it)}") }
             val replies = note.comments.size - 1
             if (replies > 0) append(" · $replies ${if (replies == 1) "reply" else "replies"}")
@@ -180,7 +183,8 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
         rowsAdapter.submit(rows.ifEmpty { listOf(DetailRow.Text("No text.")) })
         if (pending.isNotEmpty()) binding.recyclerRows.scrollToPosition(rows.size - 1)
 
-        showActions(note, inFlight)
+        // Nothing can be posted to a note osm.org has not created yet.
+        if (note.isPending) binding.actionRow.visibility = View.GONE else showActions(note, inFlight)
     }
 
     /** The thread entry a queued action will turn into, attributed to the logged-in user. */

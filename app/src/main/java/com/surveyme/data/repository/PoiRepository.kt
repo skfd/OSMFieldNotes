@@ -130,6 +130,37 @@ class PoiRepository(
 
     suspend fun getNoteById(noteId: Long): OsmNote? = noteDao.getByNoteIds(listOf(noteId)).firstOrNull()
 
+    /**
+     * A note the user just composed (item 7): the placeholder note and POI rows and the queued
+     * `create` row go in one transaction, so a crash in between cannot leave a placeholder
+     * without its request or a request whose success path finds nothing to replace.
+     * Returns the queue row id.
+     */
+    suspend fun insertPlaceholderNote(note: OsmNote, poi: Poi, request: NoteActionRequest): Long =
+        database.withTransaction {
+            poiDao.insertPoi(poi)
+            noteDao.insertAll(listOf(note))
+            noteActionDao.insert(request)
+        }
+
+    /**
+     * osm.org answered a create: the placeholder rows go, the server's note comes in under its
+     * real id, and the queue row is settled, all in one transaction. [fetched] must already
+     * carry the flags the caller wants on the new POI (the merge in [insertPois] only keeps
+     * flags of a row with the same id, and this id is new).
+     */
+    suspend fun replacePlaceholderWithServerNote(placeholderNoteId: Long, fetched: FetchedNote, completedActionId: Long) =
+        database.withTransaction {
+            deletePoisAndNotes(listOf(OsmNote.poiIdFor(placeholderNoteId)))
+            storeNoteFromServer(fetched, completedActionId)
+        }
+
+    /** A create osm.org refused for good: the placeholder and its queue row go together. */
+    suspend fun dropPlaceholderNote(placeholderNoteId: Long, actionId: Long) = database.withTransaction {
+        noteActionDao.delete(actionId)
+        deletePoisAndNotes(listOf(OsmNote.poiIdFor(placeholderNoteId)))
+    }
+
     /** The comment / close / reopen requests of one note still waiting to be posted, oldest first. */
     fun observePendingActions(noteId: Long): Flow<List<NoteActionRequest>> = noteActionDao.observeForNote(noteId)
 
@@ -167,7 +198,9 @@ class PoiRepository(
                     val note = notesByPoi[poi.id]
                     val closedRecently = note != null && !note.isOpen &&
                         (note.closedAt?.time ?: 0L) > now - Constants.NOTE_CLOSED_RETENTION_MILLIS
-                    !closedRecently
+                    // A placeholder for a queued create is not on osm.org yet; only the queue drops it.
+                    val pending = note != null && note.isPending
+                    !closedRecently && !pending
                 }.map { it.id }
                 deletePoisAndNotes(toDrop)
                 dropped = toDrop.size
@@ -221,9 +254,14 @@ class PoiRepository(
      * Returns how many were removed.
      */
     suspend fun expireOutsideRadius(source: String, lat: Double, lon: Double, radiusMeters: Int): Int {
-        val stale = poiDao.getPoisBySource(source)
+        val candidates = poiDao.getPoisBySource(source)
             .filter { it.distanceTo(lat, lon) > radiusMeters }
             .map { it.id }
+        // A placeholder for a queued create (long-pressed far away, say) stays until it is posted.
+        val pending = if (source == OsmNotesService.SOURCE_NOTES && candidates.isNotEmpty()) {
+            candidates.chunked(500).flatMap { noteDao.getByPoiIds(it) }.filter { it.isPending }.map { it.poiId }.toSet()
+        } else emptySet()
+        val stale = candidates.filter { it !in pending }
         deletePoisAndNotes(stale)
         if (stale.isNotEmpty()) Timber.d("Expired ${stale.size} $source rows beyond ${radiusMeters}m")
         return stale.size

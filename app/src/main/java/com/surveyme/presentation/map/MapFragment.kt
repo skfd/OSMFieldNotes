@@ -35,6 +35,7 @@ import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
 import com.surveyme.data.NearbyFetcher
+import com.surveyme.data.OsmNotesService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,6 +47,10 @@ import com.surveyme.data.model.ActiveTrack
 import kotlinx.coroutines.Job
 import java.util.Locale
 import com.surveyme.presentation.notes.NotesFragment
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.surveyme.core.LastKnownLocation
+import com.surveyme.data.model.OsmNote
+import com.surveyme.presentation.notes.CreateNoteDialogFragment
 
 class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
@@ -227,6 +232,9 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
             val startPoint = GeoPoint(Constants.DEFAULT_MAP_CENTER_LAT, Constants.DEFAULT_MAP_CENTER_LON)
             controller.setCenter(startPoint)
 
+            // Tap and long-press (create a note there, item 7) need no location permission.
+            overlays.add(0, MapEventsOverlay(this@MapFragment))
+
             Timber.d("Map initialized at: $startPoint, zoom: ${Constants.DEFAULT_MAP_ZOOM}")
         }
     }
@@ -237,10 +245,6 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
             Timber.w("Cannot setup overlays without location permission")
             return
         }
-
-        // Add map click events
-        val mapEventsOverlay = MapEventsOverlay(this)
-        binding.mapView.overlays.add(0, mapEventsOverlay)
 
         // Add my location overlay
         myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(requireContext()), binding.mapView).apply {
@@ -273,6 +277,17 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
             } ?: run {
                 Toast.makeText(requireContext(), "Location not available", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        binding.fabCreateNote.setOnClickListener {
+            // Where I stand: the blue dot when the map has one, else the service or platform fix.
+            val here = myLocationOverlay?.myLocation?.let { it.latitude to it.longitude }
+                ?: LastKnownLocation.get(requireContext())?.let { it.latitude to it.longitude }
+            if (here == null) {
+                Toast.makeText(requireContext(), R.string.create_note_no_location, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            CreateNoteDialogFragment.show(childFragmentManager, here.first, here.second)
         }
 
         binding.fabZoomIn.setOnClickListener {
@@ -381,9 +396,19 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         return true
     }
 
+    /** Long-press places a new note at that point, after a confirmation that shows where. */
     override fun longPressHelper(p: GeoPoint?): Boolean {
-        // Handle long press if needed
-        return false
+        val point = p ?: return false
+        Timber.d("Map long-pressed at: ${point.latitude}, ${point.longitude}")
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.create_note_long_press_title)
+            .setMessage(getString(R.string.create_note_long_press_message, CreateNoteDialogFragment.formatPoint(point.latitude, point.longitude)))
+            .setPositiveButton(R.string.create_note_here) { _, _ ->
+                CreateNoteDialogFragment.show(childFragmentManager, point.latitude, point.longitude)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        return true
     }
 
     override fun onResume() {
@@ -450,8 +475,10 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
                 snippet = poi.description
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
 
-                // Set icon based on category
-                icon = when (poi.category) {
+                // Set icon based on category; a note still waiting to be posted gets its own.
+                icon = if (poi.source == OsmNotesService.SOURCE_NOTES && poi.id.startsWith(OsmNote.POI_ID_PREFIX + "-")) {
+                    resources.getDrawable(android.R.drawable.ic_menu_upload, null)
+                } else when (poi.category) {
                     PoiCategory.TOURIST_ATTRACTION -> resources.getDrawable(android.R.drawable.star_on, null)
                     PoiCategory.RESTAURANT -> resources.getDrawable(android.R.drawable.ic_menu_myplaces, null)
                     PoiCategory.SHOP -> resources.getDrawable(android.R.drawable.ic_menu_manage, null)

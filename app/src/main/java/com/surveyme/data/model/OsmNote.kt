@@ -34,6 +34,12 @@ data class OsmNote(
 ) {
     val isOpen: Boolean get() = status == NoteStatus.OPEN
 
+    /**
+     * A note the user created that osm.org has not answered yet (item 7): a local placeholder
+     * with a negative id, replaced by the server's note once the queued create goes through.
+     */
+    val isPending: Boolean get() = noteId < 0
+
     /** Text of the opening comment, or an empty string for a note whose thread is not stored yet. */
     val openingText: String get() = comments.firstOrNull()?.text ?: ""
 
@@ -43,6 +49,9 @@ data class OsmNote(
     companion object {
         const val POI_ID_PREFIX = "osm_note_"
         fun poiIdFor(noteId: Long) = "$POI_ID_PREFIX$noteId"
+
+        /** A fresh negative id for a placeholder; unique enough for one device. */
+        fun placeholderId(now: Long = System.currentTimeMillis()): Long = -now
     }
 }
 

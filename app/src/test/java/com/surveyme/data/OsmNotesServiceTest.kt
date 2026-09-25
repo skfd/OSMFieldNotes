@@ -112,6 +112,57 @@ class OsmNotesServiceTest {
         assertEquals(43.70, fetched.poi.latitude, 1e-9)
     }
 
+    // Shape of the answer to POST notes.json?lat=&lon=&text= for an anonymous create: a fresh open
+    // note whose only comment has no user or uid.
+    private val anonymousCreateAnswer = """
+        {"type":"Feature","geometry":{"type":"Point","coordinates":[-79.3834500,43.6512300]},
+         "properties":{"id":5600001,"url":"https://api.openstreetmap.org/api/0.6/notes/5600001.json",
+           "comment_url":"https://api.openstreetmap.org/api/0.6/notes/5600001/comment.json",
+           "close_url":"https://api.openstreetmap.org/api/0.6/notes/5600001/close.json",
+           "date_created":"2026-09-25 19:00:00 UTC","status":"open",
+           "comments":[
+             {"date":"2026-09-25 19:00:00 UTC","action":"opened","text":"Bench gone & path blocked #survey"}
+           ]}}
+    """.trimIndent()
+
+    @Test
+    fun `parses the answer to a create, anonymous opening comment included`() {
+        val fetched = service.parseNoteJson(anonymousCreateAnswer)
+        assertNotNull(fetched)
+        val note = fetched!!.note
+        assertEquals(5600001L, note.noteId)
+        assertFalse(note.isPending)
+        assertEquals(NoteStatus.OPEN, note.status)
+        assertNull(note.closedAt)
+        assertEquals(1, note.comments.size)
+        assertEquals(NoteAction.OPENED, note.comments[0].action)
+        assertNull(note.comments[0].author)
+        assertNull(note.comments[0].uid)
+        assertEquals("Bench gone & path blocked #survey", note.openingText)
+        assertEquals("osm_note_5600001", fetched.poi.id)
+        assertEquals(43.65123, fetched.poi.latitude, 1e-9)
+        assertEquals(-79.38345, fetched.poi.longitude, 1e-9)
+        assertEquals("Bench gone & path blocked #survey", fetched.poi.description)
+    }
+
+    @Test
+    fun `create url carries lat, lon and encoded text as query parameters`() {
+        val url = OsmNotesService("https://api.example.org").createNoteUrl(43.65123, -79.38345, "  Bench gone & path\nblocked #survey ")
+        assertEquals("/api/0.6/notes.json", url.encodedPath)
+        assertEquals("43.6512300", url.queryParameter("lat"))
+        assertEquals("-79.3834500", url.queryParameter("lon"))
+        assertEquals("Bench gone & path\nblocked #survey", url.queryParameter("text"))
+        assertTrue(url.toString().startsWith("https://api.example.org/api/0.6/notes.json?lat=43.6512300&lon=-79.3834500&text="))
+        assertFalse(url.toString().contains("#"))
+    }
+
+    @Test
+    fun `placeholder ids are negative and never collide with server ids`() {
+        val id = com.surveyme.data.model.OsmNote.placeholderId(1_700_000_000_000L)
+        assertTrue(id < 0)
+        assertEquals("osm_note_-1700000000000", com.surveyme.data.model.OsmNote.poiIdFor(id))
+    }
+
     @Test
     fun `a non-note answer parses to null`() {
         assertNull(service.parseNoteJson("""{"type":"FeatureCollection","features":[]}"""))

@@ -12,6 +12,8 @@ import com.surveyme.data.model.PoiCategory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -146,6 +148,40 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
             parseNoteJson(body) ?: throw java.io.IOException("Answer to ${kind.apiValue} was not a note")
         }
     }
+
+    /**
+     * `POST /api/0.6/notes.json?lat=&lon=&text=` (item 7). The API takes the three as query
+     * parameters, not form fields; the body is empty. [authHeader] is the user's Bearer token,
+     * or null to create the note anonymously, which osm.org allows. The answer is the new note,
+     * parsed like a fetch, so the caller can store it with its real id. Throws like
+     * [postNoteAction].
+     */
+    suspend fun createNote(
+        lat: Double,
+        lon: Double,
+        text: String,
+        authHeader: String?
+    ): FetchedNote = withContext(Dispatchers.IO) {
+        val builder = Request.Builder()
+            .url(createNoteUrl(lat, lon, text))
+            .header("User-Agent", USER_AGENT)
+            .post(FormBody.Builder().build())
+        if (authHeader != null) builder.header("Authorization", authHeader)
+        Timber.d("Creating a note at $lat, $lon on $baseUrl${if (authHeader == null) " anonymously" else ""}")
+        client.newCall(builder.build()).execute().use { response ->
+            if (!response.isSuccessful) throw httpError(response)
+            val body = response.body?.string() ?: throw java.io.IOException("Empty answer to create")
+            parseNoteJson(body) ?: throw java.io.IOException("Answer to create was not a note")
+        }
+    }
+
+    /** The create URL with lat, lon and text as encoded query parameters. Visible for the unit test. */
+    internal fun createNoteUrl(lat: Double, lon: Double, text: String): HttpUrl =
+        "$baseUrl/api/0.6/notes.json".toHttpUrl().newBuilder()
+            .addQueryParameter("lat", String.format(Locale.US, "%.7f", lat))
+            .addQueryParameter("lon", String.format(Locale.US, "%.7f", lon))
+            .addQueryParameter("text", text.trim())
+            .build()
 
     /** The error to throw for a non-2xx [response], carrying a short plain-text body if there is one. */
     private fun httpError(response: Response): FetchHttpException {

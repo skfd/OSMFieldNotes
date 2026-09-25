@@ -17,6 +17,19 @@
 
 
 
+    <!-- Item 7: a new note where the walker stands. Long-pressing the map places one elsewhere. -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabCreateNote"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:contentDescription="@string/create_note_here"
+        app:fabSize="mini"
+        app:layout_constraintBottom_toTopOf="@+id/fabMyLocation"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:srcCompat="@drawable/ic_note_add" />
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabMyLocation"
         android:layout_width="wrap_content"

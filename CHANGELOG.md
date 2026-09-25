@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.12 (2026-09-25)
+
+**Roadmap item 7**: "build it as far as you can" (create a note)
+A new note can be composed where you stand (a FAB on the Map tab and a "Create note here" button on Home, from the tracking service's fix or the platform's last known one) or at a long-press on the map, which first confirms the coordinates; the dialog shows "Posting as <name>" or, logged out, "Posting anonymously" and then asks "Post anonymously?" once with a way to the login, and Post is disabled while the text is blank. The note goes into item 6's `note_actions` queue as a `create` row (DB v6: nullable `lat`/`lon` added with ALTER TABLE, schema 6.json exported) and is shown at once as a muted placeholder with a negative id ("NOTE · PENDING" in the list, an upload marker on the map, no actions or osm.org link in details, protected from refetch expiry); `POST /api/0.6/notes.json?lat=&lon=&text=` is sent with the Bearer token when there is one, anonymously only if the note was composed while logged out, and on success the server's note replaces the placeholder under its real id, muted and marked visited so it cannot ping its author (the DB `isVisited` flag is not what the detector gates on; `isMuted` is), while a hard refusal drops the placeholder with the reason and first line of the text in a toast. Nothing has been posted to osm.org yet: the whole path is untested until the maintainer registers an OAuth client or tries an anonymous create.
+
 ## Version 1.2.11 (2026-09-25)
 
 **Roadmap item 6**: "build it as far as you can" (comment, close, reopen)

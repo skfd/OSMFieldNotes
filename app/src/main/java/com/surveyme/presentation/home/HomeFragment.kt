@@ -13,7 +13,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.surveyme.R
+import com.surveyme.core.LastKnownLocation
 import com.surveyme.core.PermissionManager
+import com.surveyme.presentation.notes.CreateNoteDialogFragment
 import com.surveyme.databinding.FragmentHomeBinding
 import com.surveyme.presentation.base.BaseFragment
 import com.surveyme.service.LocationTrackingService
@@ -48,6 +50,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
         permissionManager = PermissionManager(requireContext())
 
         setupTrackingControls()
+        setupCreateNote()
         checkAndDisplayCrash()
         updateTrackingUI()
         checkNotificationPermission()
@@ -98,6 +101,18 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
             } else {
                 stopLocationTracking()
             }
+        }
+    }
+
+    /** Item 7: a new note where the walker stands, from the last known fix. */
+    private fun setupCreateNote() {
+        binding.buttonCreateNote.setOnClickListener {
+            val here = LastKnownLocation.get(requireContext())
+            if (here == null) {
+                Toast.makeText(context, R.string.create_note_no_location, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            CreateNoteDialogFragment.show(childFragmentManager, here.latitude, here.longitude)
         }
     }
 

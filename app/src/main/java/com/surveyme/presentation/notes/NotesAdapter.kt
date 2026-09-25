@@ -61,7 +61,11 @@ class NotesAdapter(
                     textType.text = "FIXME"
                     textType.visibility = android.view.View.VISIBLE
                 } else if (item.poi.source == "osm_notes") {
-                    textType.text = if (note != null && !note.isOpen) "NOTE · ${note.status.apiValue.uppercase()}" else "NOTE"
+                    textType.text = when {
+                        note != null && note.isPending -> "NOTE · PENDING"
+                        note != null && !note.isOpen -> "NOTE · ${note.status.apiValue.uppercase()}"
+                        else -> "NOTE"
+                    }
                     textType.visibility = android.view.View.VISIBLE
                 } else {
                     textType.visibility = android.view.View.GONE

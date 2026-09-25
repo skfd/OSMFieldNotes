@@ -15,6 +15,24 @@
     <string name="map_loading">Loading map…</string>
     <string name="map_click">Map clicked at: %1$.4f, %2$.4f</string>
     <string name="find_bikes">Find Bikes</string>
+    <string name="create_note_here">Create note here</string>
+    <string name="create_note_here_hint">Opens a new OSM note at your last known position.</string>
+    <string name="create_note_no_location">Location not available yet</string>
+    <string name="create_note_long_press_title">Create a note here?</string>
+    <string name="create_note_long_press_message">At %1$s</string>
+
+    <!-- Create note dialog -->
+    <string name="create_note_title">New OSM note</string>
+    <string name="create_note_where">At %1$.5f, %2$.5f</string>
+    <string name="create_note_as">Posting as %1$s</string>
+    <string name="create_note_anonymously">Posting anonymously (not logged in)</string>
+    <string name="create_note_hint">What needs checking here?</string>
+    <string name="create_note_post">Post</string>
+    <string name="create_note_queued">Note queued for posting</string>
+    <string name="create_note_anonymous_title">Post anonymously?</string>
+    <string name="create_note_anonymous_message">You are not logged in to OpenStreetMap. The note will be created without an author, and you will not be able to close it later from this app.</string>
+    <string name="create_note_anonymous_confirm">Post anonymously</string>
+    <string name="create_note_log_in">Log in first</string>
 
     <!-- Tracks -->
     <string name="no_tracks_yet">No tracks yet</string>

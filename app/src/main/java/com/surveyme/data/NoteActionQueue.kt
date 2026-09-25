@@ -8,9 +8,14 @@ import android.net.NetworkRequest
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
+import com.surveyme.data.model.NoteAction
 import com.surveyme.data.model.NoteActionKind
 import com.surveyme.data.model.NoteActionRequest
+import com.surveyme.data.model.NoteComment
 import com.surveyme.data.model.NoteStatus
+import com.surveyme.data.model.OsmNote
+import com.surveyme.data.model.Poi
+import com.surveyme.data.model.PoiCategory
 import com.surveyme.data.repository.PoiRepository
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -24,10 +29,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import timber.log.Timber
 import java.io.IOException
+import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * The offline queue of comment / close / reopen requests (roadmap item 6).
+ * The offline queue of comment / close / reopen requests (roadmap item 6) and of note creates
+ * (item 7).
  *
  * [enqueue] writes a `note_actions` row, applies the optimistic status to the note (close and
  * reopen only; a comment shows as a pending thread entry rendered from the row itself) and
@@ -45,6 +52,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - 401: hard failure, plus the login is cleared through [OsmAuthManager.logout] and the drain
  *   stops. Rows left in the queue wait for the next login; nothing is dropped silently.
  *
+ * A create ([enqueueCreate]) is shown at once as a placeholder note with a negative id, muted
+ * so it cannot ping its own author; on success the server's note replaces it under its real
+ * id, on a hard failure it is dropped with the reason in a toast. Creates may be posted
+ * anonymously (the API allows it; the compose dialog asked), but only ones that were composed
+ * while logged out: one composed as a user waits for a login like any other row, so a lost
+ * token never turns a signed note into an anonymous one.
+ *
  * Drains run on app start, when a network with internet appears, after a login, after each
  * enqueue, and after each successful post (the loop simply continues). No WorkManager: it is
  * not a dependency, and the process being alive is the realistic case for a walker.
@@ -54,6 +68,7 @@ class NoteActionQueue private constructor(context: Context) {
     companion object {
         private const val BACKOFF_BASE_MILLIS = 30 * 1000L
         private const val BACKOFF_MAX_MILLIS = 10 * 60 * 1000L
+        private const val PLACEHOLDER_DESCRIPTION_MAX = 200
 
         @Volatile
         private var instance: NoteActionQueue? = null
@@ -112,6 +127,54 @@ class NoteActionQueue private constructor(context: Context) {
         }
     }
 
+    /**
+     * Queues a new note at ([lat], [lon]) with [text] (item 7) and starts posting. A
+     * placeholder note and POI appear immediately in the Notes tab and on the map, marked
+     * pending; [OsmNote.isPending] tells them apart. Attributed to the logged-in user when
+     * there is one, anonymous otherwise (the caller has asked the user).
+     */
+    fun enqueueCreate(lat: Double, lon: Double, text: String) {
+        scope.launch {
+            val now = System.currentTimeMillis()
+            val me = auth.state.value as? OsmAuthState.LoggedIn
+            val placeholderId = OsmNote.placeholderId(now)
+            val body = text.trim()
+            val note = OsmNote(
+                noteId = placeholderId,
+                poiId = OsmNote.poiIdFor(placeholderId),
+                status = NoteStatus.OPEN,
+                createdAt = Date(now),
+                comments = listOf(NoteComment(Date(now), me?.displayName, me?.uid, NoteAction.OPENED, body)),
+                fetchedAt = Date(now)
+            )
+            val poi = Poi(
+                id = note.poiId,
+                name = "New note (pending)",
+                description = body.take(PLACEHOLDER_DESCRIPTION_MAX),
+                latitude = lat,
+                longitude = lon,
+                category = PoiCategory.UNKNOWN,
+                createdAt = note.createdAt,
+                source = OsmNotesService.SOURCE_NOTES,
+                tags = emptyMap(),
+                notes = body,
+                isMuted = true,
+                isVisited = true,
+                lastNotificationTime = now
+            )
+            val request = NoteActionRequest(
+                noteId = placeholderId,
+                action = NoteActionKind.CREATE.apiValue,
+                text = body,
+                lat = lat,
+                lon = lon
+            )
+            repository.insertPlaceholderNote(note, poi, request)
+            Timber.d("Queued a create at $lat, $lon as placeholder $placeholderId")
+            drainNow("enqueue")
+        }
+    }
+
     /** Posts whatever is queued, unless a drain is already running. */
     fun drain(reason: String) {
         retryJob?.cancel()
@@ -125,16 +188,28 @@ class NoteActionQueue private constructor(context: Context) {
             while (true) {
                 val row = dao.getAllOrdered().firstOrNull() ?: return
                 val header = auth.authHeader()
-                if (header == null) {
+                if (header == null && !canPostAnonymously(row)) {
                     Timber.d("Queue ($reason): ${dao.count()} rows wait for a login")
                     return
                 }
                 _posting.value = _posting.value + row.noteId
                 try {
-                    val fetched = service.postNoteAction(row.noteId, row.kind, row.text, header)
-                    repository.storeNoteFromServer(fetched, completedActionId = row.id)
+                    if (row.kind == NoteActionKind.CREATE) {
+                        val lat = row.lat
+                        val lon = row.lon
+                        if (lat == null || lon == null) throw IllegalStateException("create row without a position")
+                        val fetched = service.createNote(lat, lon, row.text, header)
+                        // Own notes do not ping their author: muted is the flag the detector honours
+                        // (item 13 gives it an unmute UI); visited and last-ping follow for good measure.
+                        val own = fetched.poi.copy(isMuted = true, isVisited = true, lastNotificationTime = System.currentTimeMillis())
+                        repository.replacePlaceholderWithServerNote(row.noteId, fetched.copy(poi = own), completedActionId = row.id)
+                        Timber.i("Created note ${fetched.note.noteId} (was placeholder ${row.noteId})")
+                    } else {
+                        val fetched = service.postNoteAction(row.noteId, row.kind, row.text, header!!)
+                        repository.storeNoteFromServer(fetched, completedActionId = row.id)
+                        Timber.i("Posted ${row.action} to note ${row.noteId}")
+                    }
                     backoffMillis = 0L
-                    Timber.i("Posted ${row.action} to note ${row.noteId}")
                 } catch (e: FetchHttpException) {
                     when {
                         e.code == 401 -> {
@@ -163,6 +238,16 @@ class NoteActionQueue private constructor(context: Context) {
         }
     }
 
+    /**
+     * Only a create composed while logged out may go without a token: its placeholder's opening
+     * comment has no author. One composed as a user waits for the login to come back.
+     */
+    private suspend fun canPostAnonymously(row: NoteActionRequest): Boolean {
+        if (row.kind != NoteActionKind.CREATE) return false
+        val placeholder = repository.getNoteById(row.noteId) ?: return true
+        return placeholder.comments.firstOrNull()?.author == null
+    }
+
     private suspend fun softFail(row: NoteActionRequest, message: String, retryAfterMillis: Long?) {
         dao.markAttempt(row.id, row.attempts + 1, message)
         val doubled = if (backoffMillis == 0L) BACKOFF_BASE_MILLIS else backoffMillis * 2
@@ -185,6 +270,14 @@ class NoteActionQueue private constructor(context: Context) {
      */
     private suspend fun hardFail(row: NoteActionRequest, message: String) {
         Timber.w("${row.action} on note ${row.noteId} refused: $message")
+        if (row.kind == NoteActionKind.CREATE) {
+            // No note on osm.org to refresh: the placeholder goes with the row. The first line of
+            // the text rides in the toast so it is not lost silently.
+            repository.dropPlaceholderNote(row.noteId, row.id)
+            val firstLine = row.text.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: ""
+            toast("New note refused: $message\n\"${firstLine.take(80)}\"")
+            return
+        }
         dao.delete(row.id)
         val refreshed = runCatching { service.fetchNote(row.noteId) }
             .onFailure { Timber.w(it, "Could not refresh note ${row.noteId} after a refused ${row.action}") }
@@ -204,6 +297,7 @@ class NoteActionQueue private constructor(context: Context) {
             NoteActionKind.COMMENT -> "Comment"
             NoteActionKind.CLOSE -> "Close"
             NoteActionKind.REOPEN -> "Reopen"
+            NoteActionKind.CREATE -> "Create"
         }
         toast("$verb on note ${row.noteId} refused: $message")
     }

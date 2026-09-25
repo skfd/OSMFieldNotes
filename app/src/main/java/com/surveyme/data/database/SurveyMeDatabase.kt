@@ -13,7 +13,7 @@ import com.surveyme.data.model.Poi
 
 @Database(
     entities = [Poi::class, TrackEntity::class, LocationPointEntity::class, OsmNote::class, NoteActionRequest::class],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -72,6 +72,17 @@ abstract class SurveyMeDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6: a `create` row carries where the note goes (item 7). Two nullable columns; the
+         * existing comment / close / reopen rows keep them null.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `note_actions` ADD COLUMN `lat` REAL")
+                db.execSQL("ALTER TABLE `note_actions` ADD COLUMN `lon` REAL")
+            }
+        }
+
         fun getDatabase(context: Context): SurveyMeDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -79,7 +90,7 @@ abstract class SurveyMeDatabase : RoomDatabase() {
                     SurveyMeDatabase::class.java,
                     "surveyme_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
