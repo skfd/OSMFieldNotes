@@ -244,7 +244,8 @@ class NoteActionQueue private constructor(context: Context) {
      */
     private suspend fun canPostAnonymously(row: NoteActionRequest): Boolean {
         if (row.kind != NoteActionKind.CREATE) return false
-        val placeholder = repository.getNoteById(row.noteId) ?: return true
+        // No placeholder (deleted meanwhile): fail closed and wait for a login rather than drop authorship.
+        val placeholder = repository.getNoteById(row.noteId) ?: return false
         return placeholder.comments.firstOrNull()?.author == null
     }
 
