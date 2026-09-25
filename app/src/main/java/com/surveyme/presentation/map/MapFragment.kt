@@ -34,8 +34,7 @@ import androidx.lifecycle.lifecycleScope
 import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.model.PoiCategory
-import com.surveyme.data.OsmNotesService
-import com.surveyme.data.OverpassService
+import com.surveyme.data.NearbyFetcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -403,25 +402,19 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
     }
 
     private fun loadPois() {
+        val context = requireContext()
+        val repository = PoiManager.getRepository(context)
+        val fetcher = PoiManager.getFetcher(context)
+        val lastLocation = preferencesManager?.getLastMapPosition()
+        val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
+        val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val repository = PoiManager.getRepository(requireContext())
-
-                // Drop fixme rows saved by earlier builds under the old source tag
-                repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
-
-                // Fetch current OSM Notes in the area
-                val lastLocation = preferencesManager?.getLastMapPosition()
-                val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
-                val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
-                
-                Timber.d("Fetching OSM Notes on map load around $lat, $lon")
-                val notesService = OsmNotesService()
-                val notes = notesService.fetchNotes(lat, lon, 2000)
-                
-                if (notes.isNotEmpty()) {
-                    repository.insertPois(notes)
-                }
+                // Notes and fixmes around the last map position, through the shared gated fetcher:
+                // a tab switch a minute after the last fetch, or without moving, does not hit the APIs.
+                Timber.d("Map load fetch around $lat, $lon")
+                fetcher.fetch(lat, lon, NearbyFetcher.Trigger.MAP_LOAD)
 
                 // Now load and display POIs
                 repository.getAllActivePois().collectLatest { pois ->

@@ -1,5 +1,10 @@
 # Survey Me - Changelog
 
+## Version 1.2.7 (2026-09-25)
+
+**Roadmap item 2**: "build it as far as you can" (fetch follows the walker)
+All note and fixme fetching now goes through one `NearbyFetcher`: the tracking service refetches around the walker once they are more than 1 km (half the 2 km radius) from the last fetch centre or the last fetch is older than 15 min, and rows of that source outside the radius are expired after each successful fetch, keeping muted, visited and last-ping flags on the survivors. osm.org and Overpass each get their own gate with a 60 s minimum interval and exponential backoff (2 min doubling to 30 min, honouring Retry-After) on HTTP or network failure; two fetches never overlap. Map load and the Settings button use the same path, the map now fetches fixmes too, and the Settings toast reports per-source counts or the skip reason.
+
 ## Version 1.2.6 (2026-09-25)
 
 **Roadmap item 1**: "go" (ping opens the item)

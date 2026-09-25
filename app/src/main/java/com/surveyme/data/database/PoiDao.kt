@@ -22,6 +22,9 @@ interface PoiDao {
     @Query("SELECT * FROM pois WHERE id IN (:ids)")
     suspend fun getPoisByIds(ids: List<String>): List<Poi>
 
+    @Query("SELECT * FROM pois WHERE source = :source")
+    suspend fun getPoisBySource(source: String): List<Poi>
+
     @Query("SELECT * FROM pois WHERE isVisited = 0 AND isActive = 1")
     fun getUnvisitedPois(): Flow<List<Poi>>
 
@@ -56,6 +59,9 @@ interface PoiDao {
 
     @Delete
     suspend fun deletePoi(poi: Poi)
+
+    @Query("DELETE FROM pois WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Query("DELETE FROM pois WHERE source = :source")
     suspend fun deleteAllFromSource(source: String)

@@ -22,6 +22,30 @@ class PreferencesManager(context: Context) {
         private const val KEY_LAST_LONGITUDE = "last_longitude"
         private const val KEY_LAST_ZOOM = "last_zoom"
         private const val KEY_DRAW_TRACK = "draw_track"
+        private const val KEY_FETCH_PREFIX = "fetch_centre_"
+    }
+
+    /** Where and when a source was last fetched successfully. */
+    data class FetchCentre(val latitude: Double, val longitude: Double, val radiusMeters: Int, val timeMillis: Long)
+
+    fun saveFetchCentre(source: String, centre: FetchCentre) {
+        prefs.edit().apply {
+            putLong("$KEY_FETCH_PREFIX${source}_lat", java.lang.Double.doubleToRawLongBits(centre.latitude))
+            putLong("$KEY_FETCH_PREFIX${source}_lon", java.lang.Double.doubleToRawLongBits(centre.longitude))
+            putInt("$KEY_FETCH_PREFIX${source}_radius", centre.radiusMeters)
+            putLong("$KEY_FETCH_PREFIX${source}_time", centre.timeMillis)
+            apply()
+        }
+    }
+
+    fun getFetchCentre(source: String): FetchCentre? {
+        if (!prefs.contains("$KEY_FETCH_PREFIX${source}_time")) return null
+        return FetchCentre(
+            latitude = java.lang.Double.longBitsToDouble(prefs.getLong("$KEY_FETCH_PREFIX${source}_lat", 0L)),
+            longitude = java.lang.Double.longBitsToDouble(prefs.getLong("$KEY_FETCH_PREFIX${source}_lon", 0L)),
+            radiusMeters = prefs.getInt("$KEY_FETCH_PREFIX${source}_radius", Constants.FETCH_RADIUS_METERS),
+            timeMillis = prefs.getLong("$KEY_FETCH_PREFIX${source}_time", 0L)
+        )
     }
 
     var isDarkMode: Boolean

@@ -78,6 +78,11 @@ class OverpassService {
         }
     }
 
+    /**
+     * Fixme-tagged nodes and ways within [radius]. Blocking; call from an IO dispatcher.
+     * Throws [FetchHttpException] on a non-2xx answer (Overpass says 429 or 504 when busy)
+     * and [IOException] on network trouble, so the caller can back off.
+     */
     fun fetchFixmePois(lat: Double, lon: Double, radius: Int = 1000): List<Poi> {
         val query = """
             [out:json][timeout:25];
@@ -94,36 +99,26 @@ class OverpassService {
 
         val request = Request.Builder()
             .url(url)
+            .header("User-Agent", "SurveyMe/1.0")
             .build()
 
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Timber.e("Overpass API request failed: ${response.code}")
-                    return emptyList()
-                }
-
-                val responseBody = response.body?.string()
-                if (responseBody == null) {
-                    Timber.e("Overpass API response body is empty")
-                    return emptyList()
-                }
-
-                val overpassResponse = gson.fromJson(responseBody, OverpassResponse::class.java)
-                return parseOverpassResponse(
-                    response = overpassResponse,
-                    defaultName = "FIXME Issue",
-                    prefixDesc = "Needs fixing:",
-                    category = PoiCategory.UNKNOWN,
-                    source = SOURCE_FIXME
-                )
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                Timber.e("Overpass API request failed: ${response.code}")
+                throw FetchHttpException(response.code, response.header("Retry-After")?.trim()?.toLongOrNull())
             }
-        } catch (e: IOException) {
-            Timber.e(e, "Error fetching data from Overpass API")
-            return emptyList()
-        } catch (e: Exception) {
-            Timber.e(e, "Unexpected error parsing Overpass API response")
-            return emptyList()
+
+            val responseBody = response.body?.string()
+                ?: throw IOException("Overpass API response body is empty")
+
+            val overpassResponse = gson.fromJson(responseBody, OverpassResponse::class.java)
+            return parseOverpassResponse(
+                response = overpassResponse,
+                defaultName = "FIXME Issue",
+                prefixDesc = "Needs fixing:",
+                category = PoiCategory.UNKNOWN,
+                source = SOURCE_FIXME
+            )
         }
     }
 

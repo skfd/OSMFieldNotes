@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.surveyme.R
 import com.surveyme.core.ProximityDetector
+import com.surveyme.data.NearbyFetcher
 import com.surveyme.data.PoiManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.TrackManager
@@ -61,6 +62,7 @@ class LocationTrackingService : Service() {
     private lateinit var locationCallback: LocationCallback
     private lateinit var notificationManager: NotificationManager
     private lateinit var proximityDetector: ProximityDetector
+    private lateinit var fetcher: NearbyFetcher
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val poisCache = mutableListOf<Poi>()
@@ -73,6 +75,7 @@ class LocationTrackingService : Service() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         proximityDetector = ProximityDetector()
+        fetcher = PoiManager.getFetcher(this)
 
         createNotificationChannels()
         setupLocationCallback()
@@ -187,6 +190,26 @@ class LocationTrackingService : Service() {
 
         // Update the ongoing notification with current location
         updateNotification(location)
+
+        refetchIfMoved(location)
+    }
+
+    /**
+     * Fetch follows the walker: when we are more than half the fetch radius from the last fetch
+     * centre (or the last fetch is stale) refetch notes and fixmes around here. The fetcher owns
+     * the rate limits and never runs two fetches at once; the pre-check keeps this cheap on the
+     * main looper. The POI cache updates by itself through the Room flow in loadPois().
+     */
+    private fun refetchIfMoved(location: Location) {
+        if (!isTracking) return
+        if (!fetcher.wantsRefetch(location.latitude, location.longitude)) return
+        serviceScope.launch {
+            try {
+                fetcher.fetch(location.latitude, location.longitude, NearbyFetcher.Trigger.WALKER)
+            } catch (e: Exception) {
+                Timber.e(e, "Walker refetch failed")
+            }
+        }
     }
 
     private fun loadPois() {

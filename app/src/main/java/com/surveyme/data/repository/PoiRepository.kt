@@ -83,6 +83,23 @@ class PoiRepository(
 
     suspend fun deleteAllFromSource(source: String) = poiDao.deleteAllFromSource(source)
 
+    suspend fun getPoisBySource(source: String): List<Poi> = poiDao.getPoisBySource(source)
+
+    /**
+     * Delete rows of [source] farther than [radiusMeters] from the centre. Called after a
+     * successful refetch so the stored set follows the walker. Muted or visited rows that
+     * fall outside the radius go too; their flags only survive while they stay in range.
+     * Returns how many were removed.
+     */
+    suspend fun expireOutsideRadius(source: String, lat: Double, lon: Double, radiusMeters: Int): Int {
+        val stale = poiDao.getPoisBySource(source)
+            .filter { it.distanceTo(lat, lon) > radiusMeters }
+            .map { it.id }
+        stale.chunked(500).forEach { poiDao.deleteByIds(it) }
+        if (stale.isNotEmpty()) Timber.d("Expired ${stale.size} $source rows beyond ${radiusMeters}m")
+        return stale.size
+    }
+
     suspend fun getStats(): Pair<Int, Int> {
         val active = poiDao.getActivePoiCount()
         val visited = poiDao.getVisitedPoiCount()

@@ -13,10 +13,26 @@ import java.util.Date
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+/** A non-2xx answer from osm.org or Overpass. [retryAfterSeconds] comes from the Retry-After header when present. */
+class FetchHttpException(val code: Int, val retryAfterSeconds: Long? = null) :
+    java.io.IOException("HTTP $code" + (retryAfterSeconds?.let { ", retry after ${it}s" } ?: ""))
+
 class OsmNotesService {
-    private val client = OkHttpClient()
+    companion object {
+        const val SOURCE_NOTES = "osm_notes"
+    }
+
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
 
+    /**
+     * Open notes inside the bounding square of [radiusMeters]. Throws [FetchHttpException]
+     * on a non-2xx answer and [java.io.IOException] on network trouble so the caller can back off;
+     * an empty list means the area really has no open notes.
+     */
     suspend fun fetchNotes(
         lat: Double,
         lon: Double,
@@ -32,22 +48,15 @@ class OsmNotesService {
             .header("User-Agent", "SurveyMe/1.0")
             .build()
 
-        try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBody = response.body?.string()
-                if (responseBody != null) {
-                    return@withContext parseNotesJson(responseBody)
-                } else {
-                    Timber.e("OSM Notes API response body is empty")
-                }
-            } else {
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
                 Timber.e("OSM Notes API request failed: ${response.code}")
+                throw FetchHttpException(response.code, response.header("Retry-After")?.trim()?.toLongOrNull())
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Error fetching OSM notes")
+            val responseBody = response.body?.string()
+                ?: throw java.io.IOException("OSM Notes API response body is empty")
+            parseNotesJson(responseBody)
         }
-        return@withContext emptyList()
     }
 
     private fun calculateBoundingBox(lat: Double, lon: Double, radiusMeters: Int): DoubleArray {
@@ -124,7 +133,7 @@ class OsmNotesService {
                         longitude = lon,
                         category = PoiCategory.UNKNOWN, 
                         createdAt = createdAt ?: Date(),
-                        source = "osm_notes",
+                        source = SOURCE_NOTES,
                         tags = mapOf("osm_id" to noteId, "status" to status),
                         notes = notesText,
                         priority = 0,

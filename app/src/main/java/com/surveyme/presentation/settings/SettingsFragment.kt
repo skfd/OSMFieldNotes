@@ -20,8 +20,7 @@ import com.surveyme.presentation.base.BaseFragment
 import com.surveyme.presentation.debug.LogViewerDialog
 import timber.log.Timber
 import com.surveyme.data.PoiManager
-import com.surveyme.data.OverpassService
-import com.surveyme.data.OsmNotesService
+import com.surveyme.data.NearbyFetcher
 import com.surveyme.core.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -121,6 +120,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         val lastLocation = preferencesManager.getLastMapPosition()
         val lat = lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
         val lon = lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
+        val fetcher = PoiManager.getFetcher(requireContext())
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -128,26 +128,12 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                     Toast.makeText(context, "Searching for OSM Notes and FIXMEs around map position...", Toast.LENGTH_SHORT).show()
                 }
 
-                val notesService = OsmNotesService()
-                val overpassService = OverpassService()
-                
-                val notes = notesService.fetchNotes(lat, lon, 2000)
-                val fixmes = overpassService.fetchFixmePois(lat, lon, 2000)
-                
-                val combined = notes + fixmes
+                // Manual: skips the movement check and minimum interval, still honours a backoff.
+                val report = fetcher.fetch(lat, lon, NearbyFetcher.Trigger.MANUAL)
 
-                if (combined.isNotEmpty()) {
-                    val repository = PoiManager.getRepository(requireContext())
-                    repository.deleteAllFromSource(OverpassService.SOURCE_LEGACY)
-                    repository.insertPois(combined)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Found and saved ${notes.size} Notes and ${fixmes.size} FIXMEs!", Toast.LENGTH_LONG).show()
-                        updatePoiCount()
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "No Notes or FIXMEs found nearby.", Toast.LENGTH_SHORT).show()
-                    }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, report.describe(), Toast.LENGTH_LONG).show()
+                    if (report.touchedDatabase) updatePoiCount()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
