@@ -71,6 +71,12 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
     /** Local copy of the fixme's dismissed flag; the sheet observes the note row, not the POI row. */
     private var dismissed = false
 
+    /**
+     * The POI row as loaded, updated locally when this sheet mutes or marks it visited: render()
+     * re-runs on every note / queue emission and must not paint the stale flags back.
+     */
+    private var currentPoi: Poi? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -128,6 +134,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
                 val poi = runCatching { repository.getPoiById(poiId) }
                     .onFailure { Timber.e(it, "Loading POI $poiId for details") }
                     .getOrNull() ?: return@launch
+                currentPoi = poi
                 val pendingFlow = if (noteId != null) repository.observePendingActions(noteId) else flowOf(emptyList())
                 val postingFlow = NoteActionQueue.get(requireContext()).posting
                 // Note row, queue and in-flight set together: any of them changing re-renders.
@@ -135,7 +142,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
                     combine(repository.observeNoteByPoiId(poiId), pendingFlow, postingFlow) { note, pending, posting ->
                         Triple(note, pending, noteId != null && noteId in posting)
                     }.collect { (note, pending, inFlight) ->
-                        if (_binding != null) render(poi, note, pending, inFlight, distanceArg)
+                        if (_binding != null) render(currentPoi ?: poi, note, pending, inFlight, distanceArg)
                     }
                 }
             }
@@ -345,6 +352,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
                     viewLifecycleOwner.lifecycleScope.launch {
                         runCatching { PoiManager.getRepository(context).markAsVisited(poi.id) }
                             .onFailure { Timber.e(it, "Marking ${poi.id} visited") }
+                            .onSuccess { currentPoi = currentPoi?.copy(isVisited = true) }
                     }
                     if (!dismissed) {
                         Toast.makeText(context, "Marked visited. Dismiss for now to stop pings.", Toast.LENGTH_SHORT).show()
@@ -359,6 +367,7 @@ class NoteDetailsDialogFragment : BottomSheetDialogFragment() {
                     runCatching { PoiManager.getRepository(context).setMuted(poi.id, muted) }
                         .onFailure { Timber.e(it, "Muting ${poi.id}") }
                         .onSuccess {
+                            currentPoi = currentPoi?.copy(isMuted = muted)
                             if (_binding == null) return@onSuccess
                             dismissed = muted
                             setStatus(if (muted) "FIXME · DISMISSED" else "FIXME", highlighted = !muted)
