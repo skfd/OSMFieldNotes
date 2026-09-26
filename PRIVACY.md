@@ -22,7 +22,9 @@ visible notification until you stop it yourself.
 
 **Where it goes.** Position fixes are stored only in the app's private Room database on the
 device (`survey_me_database`): the track you are recording, the last fix used for distance and
-for ping decisions, and the fix attached to each piece of evidence you capture. No fix is
+for ping decisions, and the fix attached to each piece of evidence you capture. The last
+position is also remembered in the app's preferences so the map can open where you were; see
+"Other data on the device" for what Android's own backup does with preferences. No fix is
 uploaded anywhere by the app.
 
 **What leaves the device because of your position.**
@@ -85,9 +87,9 @@ described in the OpenStreetMap Foundation privacy policy
 
 "Add photo", "Pick photo" and "Add text" on a note or fixme store the photo or text in the
 app's private storage (`files/evidence/`) together with the item's id, a snapshot of its
-title and coordinates, and your fix at the time. The app declares no camera or storage
-permission; the camera and the photo picker are system components that hand the app one
-file. Evidence is never uploaded by the app; "Share" hands the file to an app you pick.
+title and coordinates, and your fix at the time. The app declares no camera permission and no
+storage permission on any Android version; the camera and the photo picker are system
+components that hand the app one file. Evidence is never uploaded by the app; "Share" hands the file to an app you pick.
 Deleting an evidence row deletes its file.
 
 ## Other data on the device
@@ -99,9 +101,10 @@ Deleting an evidence row deletes its file.
   `app_log.txt`, which can contain position fixes. Neither file is sent anywhere unless you
   share it yourself.
 
-Preferences (not the token, not the database) are included in Android's own backup if you have
-device backup switched on; that goes to your Google account under Google's terms, not to the
-maintainer.
+Preferences (not the token, not the database, not the evidence files) are included in
+Android's own backup if you have device backup switched on. They hold your settings and the
+last position the app saw, and go to your Google account under Google's terms, not to the
+maintainer. Switch off app backup in Android settings if you do not want that.
 
 ## Third parties
 
