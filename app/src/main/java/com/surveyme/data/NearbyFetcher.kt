@@ -30,7 +30,9 @@ class NearbyFetcher(
     private val repository: PoiRepository,
     private val prefs: PreferencesManager,
     private val notesService: OsmNotesService = OsmNotesService(),
-    private val overpassService: OverpassService = OverpassService()
+    private val overpassService: OverpassService = OverpassService(),
+    /** The clock every gate reads; injectable so the unit tests can walk time forward. */
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
     enum class Trigger {
         /** Location update from the tracking service. Movement or staleness check, gate applies. */
@@ -75,7 +77,7 @@ class NearbyFetcher(
      * Cheap pre-check for the tracking service so it does not launch a coroutine on every
      * location update. True when either source would want a refetch here, before rate limits.
      */
-    fun wantsRefetch(lat: Double, lon: Double, now: Long = System.currentTimeMillis()): Boolean {
+    fun wantsRefetch(lat: Double, lon: Double, now: Long = clock()): Boolean {
         if (isNoPosition(lat, lon)) return false
         // A source counts only when its gate is open (no min interval or backoff pending) and it
         // has moved or gone stale; otherwise a backed-off source would launch a no-op every tick.
@@ -153,7 +155,7 @@ class NearbyFetcher(
         poiOf: (T) -> Poi,
         store: suspend (P, List<T>) -> Int
     ): Outcome {
-        val now = System.currentTimeMillis()
+        val now = clock()
 
         val why = if (trigger == Trigger.MANUAL) "manual" else movedOrStale(gate.source, lat, lon, now)
         if (why == null) {

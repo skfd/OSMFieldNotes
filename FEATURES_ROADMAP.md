@@ -55,7 +55,7 @@ Each item is one session-sized piece of work. Ticks go here; do not renumber.
 14. [x] **Battery pass.** (done 2026-09-25, v1.2.19; adaptive cadence and batching done; the two-hour walk measurement is still owed on a device) Location update interval adapts to speed; fetches batch behind the location cadence; measure a two-hour walk.
 15. [x] **Rename.** (done 2026-09-25, v1.2.20; labels and docs only, package id and data files unchanged) App name, package label and docs from "Survey Me" to FixMeAwesome (package id stays `com.surveyme` unless a release is far off enough to change it).
 16. [x] **Release prep.** (done 2026-09-25, v1.2.21; icon, privacy policy, R8, signing wiring, listing text; screenshots and the license decision still owed) Adaptive icon, privacy policy (location, OSM account), ProGuard rules, signed build, listing text and screenshots.
-17. [ ] **Tests around the loop.** Unit tests for the notes API client, the refetch trigger, proximity logic, and the classifier against `analysis/toronto_open_notes.json`. One instrumented test for the deep-link.
+17. [x] **Tests around the loop.** (done 2026-09-25, v1.2.22; notes API client over MockWebServer, refetch gates and backoff with an injected clock, proximity with a fake clock; instrumented test compiles but has not run on a device) Unit tests for the notes API client, the refetch trigger, proximity logic, and the classifier against `analysis/toronto_open_notes.json`. One instrumented test for the deep-link.
 
 ## Note classes
 

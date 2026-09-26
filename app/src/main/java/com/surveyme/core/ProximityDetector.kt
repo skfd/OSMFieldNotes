@@ -5,7 +5,11 @@ import com.surveyme.data.model.Poi
 import timber.log.Timber
 import kotlin.math.*
 
-class ProximityDetector {
+/**
+ * Decides which POIs a fix pings: inside the radius, not visited this session, and not pinged
+ * in the last five minutes. [clock] is injectable so the unit tests can walk the cooldown.
+ */
+class ProximityDetector(private val clock: () -> Long = System::currentTimeMillis) {
 
     companion object {
         private const val EARTH_RADIUS_METERS = 6371000.0
@@ -35,7 +39,7 @@ class ProximityDetector {
         pingRadiusMeters: Int = PreferencesManager.DEFAULT_PING_RADIUS_METERS,
         onProximityDetected: (Poi, Float) -> Unit
     ) {
-        val currentTime = System.currentTimeMillis()
+        val currentTime = clock()
         Timber.d("Checking proximity for ${pois.size} POIs at location: $currentLat, $currentLon (ping radius ${pingRadiusMeters}m)")
 
         pois.forEach { poi ->
