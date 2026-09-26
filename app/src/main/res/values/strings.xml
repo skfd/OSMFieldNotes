@@ -134,6 +134,9 @@
     <string name="settings_muted_items_hint">Notes and fixmes muted from a ping or dismissed for now.</string>
     <string name="settings_battery_stats">Battery stats</string>
     <string name="settings_battery_stats_hint">This tracking session: fixes, proximity passes, fetches, pings, cadence tier and battery. The same line goes to the log every 10 minutes.</string>
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_privacy_hint">What the app keeps on the phone and what it sends to openstreetmap.org. Opens in the browser.</string>
+    <string name="settings_privacy_no_browser">No browser found to open the privacy policy.</string>
     <string name="radius_km">%1$d km</string>
     <string name="radius_m">%1$d m</string>
 

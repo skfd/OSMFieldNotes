@@ -13,7 +13,22 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 fun localProperty(key: String, default: String): String =
-    localProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() } ?: default
+    localProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }
+        ?: System.getenv(key)?.trim()?.takeIf { it.isNotEmpty() }
+        ?: default
+
+// Release signing (roadmap item 16). The keystore lives OUTSIDE the repo; see FIRST_RUN.md for the
+// keytool command. All four keys come from local.properties or the environment. When the store is
+// not configured the release build stays unsigned (app-release-unsigned.apk), so CI and a fresh
+// clone still build.
+val releaseStoreFile = localProperty("RELEASE_STORE_FILE", "")
+val releaseStorePassword = localProperty("RELEASE_STORE_PASSWORD", "")
+val releaseKeyAlias = localProperty("RELEASE_KEY_ALIAS", "")
+val releaseKeyPassword = localProperty("RELEASE_KEY_PASSWORD", releaseStorePassword)
+val hasReleaseSigning = releaseStoreFile.isNotEmpty() && rootProject.file(releaseStoreFile).exists()
+if (releaseStoreFile.isNotEmpty() && !hasReleaseSigning) {
+    logger.warn("RELEASE_STORE_FILE is set but $releaseStoreFile does not exist; the release build will be unsigned")
+}
 
 
 android {
@@ -24,8 +39,8 @@ android {
         applicationId = "com.surveyme"
         minSdk = 23
         targetSdk = 35
-        versionCode = 28
-        versionName = "1.2.20"
+        versionCode = 29
+        versionName = "1.2.21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -37,9 +52,21 @@ android {
         buildConfigField("String", "OSM_OAUTH_BASE_URL", "\"${localProperty("OSM_OAUTH_BASE_URL", "https://www.openstreetmap.org")}\"")
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -58,6 +58,33 @@ OSM_OAUTH_CLIENT_ID=paste_the_client_id_here
 `OSM_OAUTH_BASE_URL` for the sandbox). Without a client id the app builds and runs; the
 login button just says the id is missing.
 
+### Release signing (only for publishing)
+
+A release build (`assembleRelease`) is minified and, when a keystore is configured, signed.
+Without one it still builds, as `app-release-unsigned.apk`. Create the keystore **outside the
+repo** once, with the keytool that ships in the Android Studio JBR:
+
+```powershell
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v `
+    -keystore "$env:USERPROFILE\keys\fixmeawesome-release.jks" -storetype PKCS12 `
+    -alias fixmeawesome -keyalg RSA -keysize 4096 -validity 10000 `
+    -dname "CN=FixMeAwesome, O=skfd, C=CA"
+```
+
+It asks for one password; PKCS12 uses it for both the store and the key. Back that file up
+somewhere safe: every update must be signed with the same key, and it cannot be recovered.
+Then add to `local.properties` (or export the same four names as environment variables):
+
+```properties
+RELEASE_STORE_FILE=C\:\Users\YourName\keys\fixmeawesome-release.jks
+RELEASE_STORE_PASSWORD=the_password
+RELEASE_KEY_ALIAS=fixmeawesome
+RELEASE_KEY_PASSWORD=the_password
+```
+
+`*.jks`, `*.keystore` and `*.p12` are gitignored; never put the keystore or the passwords in
+the repo. RELEASE.md has the rest of the release checklist.
+
 ## Step 4: Sync Gradle
 
 1.  Click the **Sync Project with Gradle Files** button (elephant icon) in the toolbar.

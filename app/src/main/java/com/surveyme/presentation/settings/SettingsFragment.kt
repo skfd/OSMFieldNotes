@@ -88,6 +88,17 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         updatePermissionStatus()
     }
 
+    /** Settings > About > Privacy policy: PRIVACY.md on GitHub, in whatever handles https. */
+    private fun openPrivacyPolicy() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(Constants.PRIVACY_POLICY_URL))
+        try {
+            startActivity(intent)
+        } catch (e: android.content.ActivityNotFoundException) {
+            Timber.w(e, "No handler for the privacy policy URL")
+            Toast.makeText(requireContext(), R.string.settings_privacy_no_browser, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun setupSettings() {
         with(binding) {
             // Set current values
@@ -96,6 +107,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             switchDrawTrack.isChecked = preferencesManager.isDrawTrackEnabled
             textMapStyle.text = preferencesManager.mapStyle.capitalize()
             textVersion.text = BuildConfig.VERSION_NAME
+            rowPrivacy.setOnClickListener { openPrivacyPolicy() }
 
             // Set listeners
             switchDarkMode.setOnCheckedChangeListener { _, isChecked ->

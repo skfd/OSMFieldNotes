@@ -18,4 +18,7 @@
     <color name="divider">#BDBDBD</color>
     <color name="track_color">#FF5722</color>
     <color name="location_accuracy">#42A5F5</color>
+
+    <!-- Launcher icon background (adaptive icon, roadmap item 16) -->
+    <color name="ic_launcher_background">#1976D2</color>
 </resources>

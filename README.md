@@ -52,6 +52,11 @@ To view app logs and crash reports:
 ./show-logs.ps1
 ```
 
+## Privacy and release
+
+- [PRIVACY.md](PRIVACY.md): what the app stores on the phone and what it sends to openstreetmap.org and Overpass. Also linked from Settings > About in the app.
+- [RELEASE.md](RELEASE.md): the release checklist; [FIRST_RUN.md](FIRST_RUN.md) has the keystore setup and `store/` the listing text.
+
 ## Automation Scripts
 See [SCRIPTS.md](SCRIPTS.md) for details on available PowerShell scripts for building, testing, and GPS simulation.
 

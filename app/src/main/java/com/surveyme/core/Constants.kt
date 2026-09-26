@@ -2,6 +2,8 @@ package com.surveyme.core
 
 object Constants {
     const val APP_NAME = "FixMeAwesome"
+    /** Privacy policy (roadmap item 16), opened from Settings > About; the file is PRIVACY.md in the repo. */
+    const val PRIVACY_POLICY_URL = "https://github.com/skfd/FixMeAwesome/blob/main/PRIVACY.md"
     const val DATABASE_NAME = "survey_me_database"
     const val PREFERENCES_NAME = "survey_me_preferences"
 

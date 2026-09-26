@@ -38,3 +38,55 @@
 
 # Tink (pulled in by security-crypto) references errorprone annotations that are not on the classpath.
 -dontwarn com.google.errorprone.annotations.**
+
+# ---- Release prep (roadmap item 16) -------------------------------------------------------
+# The release build is minified; these rules are what keeps it working. Verified with
+# assembleRelease (R8 full mode). Gson, Room, OkHttp and osmdroid ship their own consumer
+# rules; the lines below cover what those do not.
+
+# Gson: generic signatures for TypeToken<List<NoteComment>> etc. in Converters, and the
+# annotation-driven field names. Gson consumer rules cover TypeToken itself.
+-keepattributes Signature, *Annotation*, InnerClasses, EnclosingMethod
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+
+# Parcelize / Serializable payloads that travel through Bundles and navigation args.
+-keepclassmembers class * implements android.os.Parcelable {
+    public static final ** CREATOR;
+}
+-keepclassmembers class * implements java.io.Serializable {
+    static final long serialVersionUID;
+    private static final java.io.ObjectStreamField[] serialPersistentFields;
+    private void writeObject(java.io.ObjectOutputStream);
+    private void readObject(java.io.ObjectInputStream);
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
+
+# Tink (behind security-crypto) references optional annotation and JDK classes at compile
+# time only; its protobuf keep rules ship inside the library, so no blanket keep here
+# (a keep-all on tink costs 450 KB of APK).
+-dontwarn com.google.crypto.tink.**
+-dontwarn javax.annotation.**
+
+# OkHttp / okio reference Conscrypt, BouncyCastle and OpenJSSE that are not on the classpath.
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+
+# osmdroid is used through its public API only; silence its optional dependencies.
+-dontwarn org.osmdroid.**
+
+# Kotlin coroutines: ServiceLoader-based Android dispatcher and the debug probes.
+-dontwarn kotlinx.coroutines.**
+-keep class kotlinx.coroutines.android.AndroidDispatcherFactory { *; }
+-keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
+
+# The database class name shows up in log lines and the backup helper; keep it readable.
+-keep class com.surveyme.data.database.SurveyMeDatabase { *; }
+
+# Stack traces in crash_log.txt stay readable only with the mapping.txt of that build;
+# archive app/build/outputs/mapping/release/mapping.txt next to each APK (see RELEASE.md).
+-renamesourcefileattribute SourceFile

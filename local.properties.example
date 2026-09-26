@@ -15,3 +15,13 @@ sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 # Point auth and user/details at the sandbox instead of production (needs a separate
 # account and client registration there). Notes fetching still uses api.openstreetmap.org.
 #OSM_OAUTH_BASE_URL=https://master.apis.dev.openstreetmap.org
+
+# Release signing (roadmap item 16). Create the keystore OUTSIDE the repo (FIRST_RUN.md has the
+# keytool command) and point at it here, or export the same four names as environment variables.
+# All four blank = unsigned release build (app-release-unsigned.apk), which is fine for CI.
+# Note the escaping: a Windows path needs C\:\ like sdk.dir above.
+#RELEASE_STORE_FILE=C\:\Users\YourName\keys\fixmeawesome-release.jks
+#RELEASE_STORE_PASSWORD=
+#RELEASE_KEY_ALIAS=fixmeawesome
+# Defaults to RELEASE_STORE_PASSWORD (PKCS12 keystores use one password for both).
+#RELEASE_KEY_PASSWORD=
