@@ -26,7 +26,7 @@ Simply open Android Studio from your Start Menu or desktop shortcut.
 ## Step 2: Open the Project
 
 1.  In Android Studio, select **File > Open**.
-2.  Navigate to the directory where you cloned the repository (e.g., `C:\Users\YourName\Code\OSM Field Notes`).
+2.  Navigate to the directory where you cloned the repository (e.g., `C:\Users\YourName\Code\OSMFieldNotes`).
 3.  Select the root folder (containing `build.gradle.kts` and `settings.gradle.kts`) and click **OK**.
 
 ## Step 3: Configure SDK Path (Crucial)
