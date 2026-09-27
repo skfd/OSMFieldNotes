@@ -1,6 +1,6 @@
 # OSM Field Notes privacy policy
 
-Last updated 2026-09-25. Applies to the Android app OSM Field Notes (package id `com.surveyme`).
+Last updated 2026-09-26. Applies to the Android app OSM Field Notes (package id `com.surveyme`).
 
 The short version: the app keeps everything on your phone, talks to openstreetmap.org and the
 Overpass API only to do what you asked it to do, has no account of its own, no analytics, no

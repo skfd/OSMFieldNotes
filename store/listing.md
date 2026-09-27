@@ -9,7 +9,7 @@ OSM Field Notes
 
 ## Short description (80 characters max)
 
-Pings you when an open OSM note or fixme is nearby. Walk, then fix the map on the spot.
+Pings you near open OSM notes and fixmes. Walk, then fix the map on the spot.
 
 ## Full description
 
