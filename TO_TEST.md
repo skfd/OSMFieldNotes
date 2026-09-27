@@ -5,7 +5,7 @@ Roadmap items 2 through 17 were built on 2026-09-25 and 2026-09-26 without a dev
 ## Before anything else
 
 - Install v1.2.22 **over the existing v1.2.6 install** (not a fresh install). That runs six Room migrations (3 to 9) on real data in one go. Open the Notes tab, Tracks tab and Settings: no crash, old notes and tracks still listed.
-- Register the OSM OAuth client (steps in FIRST_RUN.md: https://www.openstreetmap.org/oauth2/applications/new, redirect URI exactly `fixmeawesome://oauth/callback`, "Confidential application" unchecked, permissions `write_notes` and `read_prefs`), put `OSM_OAUTH_CLIENT_ID=...` in local.properties, rebuild. Items 5 to 9 are untestable until then.
+- Register the OSM OAuth client (steps in FIRST_RUN.md: https://www.openstreetmap.org/oauth2/applications/new, redirect URI exactly `osmfieldnotes://oauth/callback`, "Confidential application" unchecked, permissions `write_notes` and `read_prefs`), put `OSM_OAUTH_CLIENT_ID=...` in local.properties, rebuild. Items 5 to 9 are untestable until then.
 
 ## Item 2: fetch follows the walker (v1.2.7)
 
@@ -122,9 +122,9 @@ Roadmap items 2 through 17 were built on 2026-09-25 and 2026-09-26 without a dev
 ## Item 15: rename (v1.2.20)
 
 - Install over the existing build and check notes, tracks, OSM login and settings survive.
-- Launcher icon and recents read "FixMeAwesome".
-- Start tracking: the notification title reads "FixMeAwesome - Tracking".
-- Revoke location and re-grant: the dialogs say "FixMeAwesome needs...".
+- Launcher icon and recents read "OSM Field Notes".
+- Start tracking: the notification title reads "OSM Field Notes - Tracking".
+- Revoke location and re-grant: the dialogs say "OSM Field Notes needs...".
 
 ## Item 16: release prep (v1.2.21)
 

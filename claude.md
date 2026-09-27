@@ -1,4 +1,4 @@
-# FixMeAwesome - Android Application for OpenStreetMap Contributors
+# OSM Field Notes - Android Application for OpenStreetMap Contributors
 
 ## Important Development Rules
 
@@ -11,7 +11,7 @@
 
 ## Project Overview
 
-FixMeAwesome (package id still `com.surveyme`) is an Android app for OpenStreetMap contributors who like long walks. It pulls the things OSM itself says need a field visit, open OSM Notes and objects tagged `fixme`, from around the walker, pings them when they get close, and lets them act on the spot.
+OSM Field Notes (package id still `com.surveyme`) is an Android app for OpenStreetMap contributors who like long walks. It pulls the things OSM itself says need a field visit, open OSM Notes and objects tagged `fixme`, from around the walker, pings them when they get close, and lets them act on the spot.
 
 Decided 2026-09-22. The roadmap in `FEATURES_ROADMAP.md` is the source of truth for what to build next; `design/` predates this and describes the older, broader concept.
 
@@ -94,8 +94,8 @@ The application follows Clean Architecture principles with MVVM (Model-View-View
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/survey-me.git
-cd survey-me
+git clone https://github.com/skfd/OSMFieldNotes.git
+cd OSMFieldNotes
 
 # Set up local properties
 echo "sdk.dir=/path/to/android/sdk" > local.properties
@@ -312,7 +312,7 @@ Report bugs and request features through our GitHub Issues tracker.
 
 ---
 
-*This document serves as the primary reference for developers working on FixMeAwesome. It should be updated whenever significant architectural decisions or changes are made to the project.*
+*This document serves as the primary reference for developers working on OSM Field Notes. It should be updated whenever significant architectural decisions or changes are made to the project.*
 - rebuild, reinstall and tell me what to test after you change code
 - update feature roadmap when something is implemented
 - after implementing a feature give me one line COMMIT MESSAGE  I should use, and TO TEST list of thinkgings s to test

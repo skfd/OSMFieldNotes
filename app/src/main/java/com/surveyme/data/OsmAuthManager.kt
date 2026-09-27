@@ -39,7 +39,7 @@ sealed class OsmAuthState {
  * `/oauth2/token` (verified against osm.org's `.well-known/oauth-authorization-server`, which
  * lists S256, `authorization_code` only, and no refresh tokens; osm.org tokens do not expire).
  * The authorize page opens in a Chrome Custom Tab and returns through the
- * `fixmeawesome://oauth/callback` intent-filter on MainActivity, which hands the URI to
+ * `osmfieldnotes://oauth/callback` intent-filter on MainActivity, which hands the URI to
  * [handleCallback]. The PKCE verifier and `state` are kept in the encrypted prefs so the
  * exchange survives the process being killed behind the browser.
  *
@@ -235,7 +235,7 @@ class OsmAuthManager private constructor(context: Context) {
 
     private fun request(url: String) = Request.Builder()
         .url(url)
-        .header("User-Agent", "FixMeAwesome/${BuildConfig.VERSION_NAME}")
+        .header("User-Agent", "OSMFieldNotes/${BuildConfig.VERSION_NAME}")
 
     private fun readState(): OsmAuthState {
         val token = prefs.getString(KEY_TOKEN, null) ?: return OsmAuthState.LoggedOut

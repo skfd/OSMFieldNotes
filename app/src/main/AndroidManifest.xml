@@ -55,14 +55,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- OSM OAuth 2 redirect (fixmeawesome://oauth/callback); singleTask brings the
+            <!-- OSM OAuth 2 redirect (osmfieldnotes://oauth/callback); singleTask brings the
                  Custom Tab back to the running activity through onNewIntent. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="fixmeawesome"
+                    android:scheme="osmfieldnotes"
                     android:host="oauth"
                     android:path="/callback" />
             </intent-filter>

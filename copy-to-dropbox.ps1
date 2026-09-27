@@ -1,4 +1,4 @@
-$apkDir = "~\Code\FixMeAwesome\app\build\outputs\apk\debug"
+$apkDir = Join-Path $PSScriptRoot "app\build\outputs\apk\debug"
 $metaFile = Join-Path $apkDir "output-metadata.json"
 $meta = Get-Content $metaFile | ConvertFrom-Json
 $version = $meta.elements[0].versionName

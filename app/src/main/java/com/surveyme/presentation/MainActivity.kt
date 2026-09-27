@@ -54,7 +54,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * `fixmeawesome://oauth/callback?code=...&state=...` from the Custom Tab (onNewIntent while
+     * `osmfieldnotes://oauth/callback?code=...&state=...` from the Custom Tab (onNewIntent while
      * the app is alive, onCreate when it was killed behind the browser). The data is nulled once
      * consumed so a rotation does not replay the exchange.
      */

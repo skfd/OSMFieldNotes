@@ -1,6 +1,6 @@
 # First Run In Android Studio
 
-This guide will help you set up and run the `FixMeAwesome` project in Android Studio for the first time.
+This guide will help you set up and run the `OSM Field Notes` project in Android Studio for the first time.
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ Simply open Android Studio from your Start Menu or desktop shortcut.
 ## Step 2: Open the Project
 
 1.  In Android Studio, select **File > Open**.
-2.  Navigate to the directory where you cloned the repository (e.g., `C:\Users\YourName\Code\FixMeAwesome`).
+2.  Navigate to the directory where you cloned the repository (e.g., `C:\Users\YourName\Code\OSM Field Notes`).
 3.  Select the root folder (containing `build.gradle.kts` and `settings.gradle.kts`) and click **OK**.
 
 ## Step 3: Configure SDK Path (Crucial)
@@ -47,7 +47,7 @@ sdk.dir=C:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 
 Logging in to OpenStreetMap needs an OAuth 2 client id in the same file. Register one at
 `https://www.openstreetmap.org/oauth2/applications/new` with redirect URI
-`fixmeawesome://oauth/callback` (exactly), "Confidential application" unchecked, and the
+`osmfieldnotes://oauth/callback` (exactly), "Confidential application" unchecked, and the
 `write_notes` and `read_prefs` permissions; then add:
 
 ```properties
@@ -66,9 +66,9 @@ repo** once, with the keytool that ships in the Android Studio JBR:
 
 ```powershell
 & "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v `
-    -keystore "$env:USERPROFILE\keys\fixmeawesome-release.jks" -storetype PKCS12 `
-    -alias fixmeawesome -keyalg RSA -keysize 4096 -validity 10000 `
-    -dname "CN=FixMeAwesome, O=skfd, C=CA"
+    -keystore "$env:USERPROFILE\keys\osmfieldnotes-release.jks" -storetype PKCS12 `
+    -alias osmfieldnotes -keyalg RSA -keysize 4096 -validity 10000 `
+    -dname "CN=OSM Field Notes, O=skfd, C=CA"
 ```
 
 It asks for one password; PKCS12 uses it for both the store and the key. Back that file up
@@ -76,9 +76,9 @@ somewhere safe: every update must be signed with the same key, and it cannot be 
 Then add to `local.properties` (or export the same four names as environment variables):
 
 ```properties
-RELEASE_STORE_FILE=C\:\Users\YourName\keys\fixmeawesome-release.jks
+RELEASE_STORE_FILE=C\:\Users\YourName\keys\osmfieldnotes-release.jks
 RELEASE_STORE_PASSWORD=the_password
-RELEASE_KEY_ALIAS=fixmeawesome
+RELEASE_KEY_ALIAS=osmfieldnotes
 RELEASE_KEY_PASSWORD=the_password
 ```
 

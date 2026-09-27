@@ -1,4 +1,4 @@
-# FixMeAwesome
+# OSM Field Notes
 
 Android mapping app for OpenStreetMap field surveys with GPS tracking and POI notifications.
 
@@ -13,8 +13,8 @@ Android mapping app for OpenStreetMap field surveys with GPS tracking and POI no
 
 1. Clone repository
 ```bash
-git clone https://github.com/yourusername/survey-me.git
-cd survey-me
+git clone https://github.com/skfd/OSMFieldNotes.git
+cd OSMFieldNotes
 ```
 
 2. Open in Android Studio

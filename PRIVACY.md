@@ -1,6 +1,6 @@
-# FixMeAwesome privacy policy
+# OSM Field Notes privacy policy
 
-Last updated 2026-09-25. Applies to the Android app FixMeAwesome (package id `com.surveyme`).
+Last updated 2026-09-25. Applies to the Android app OSM Field Notes (package id `com.surveyme`).
 
 The short version: the app keeps everything on your phone, talks to openstreetmap.org and the
 Overpass API only to do what you asked it to do, has no account of its own, no analytics, no
@@ -8,7 +8,7 @@ advertising, and no crash reporting service. The maintainer never sees your data
 
 ## What the app is for
 
-FixMeAwesome tracks your position while you walk, fetches the open OpenStreetMap notes and
+OSM Field Notes tracks your position while you walk, fetches the open OpenStreetMap notes and
 `fixme`-tagged objects around you, pings you when you get close to one, and lets you act on it:
 read and comment on notes with your OSM account, hand a fixme to an external editor, or pin a
 photo or a text to it for later. Every item below exists to serve that loop.
@@ -75,7 +75,7 @@ https://www.openstreetmap.org/oauth2/authorized_applications at any time.
 | `overpass-api.de` | fetching fixmes | an Overpass QL query with a bounding box |
 | `tile.openstreetmap.org` | showing the map | tile coordinates |
 
-Requests to the OSM API and Overpass carry the User-Agent `FixMeAwesome/<version>`; map tile
+Requests to the OSM API and Overpass carry the User-Agent `OSMFieldNotes/<version>`; map tile
 requests carry the package id, as osmdroid's usage policy requires. Nothing else is sent: no
 device id, no advertising id, no usage statistics.
 
@@ -115,7 +115,7 @@ libraries (osmdroid, OkHttp, Room, Gson, Tink) run entirely on the device.
 
 ## Deleting your data
 
-- **Everything:** uninstall the app, or Android Settings > Apps > FixMeAwesome > Clear storage.
+- **Everything:** uninstall the app, or Android Settings > Apps > OSM Field Notes > Clear storage.
   Both remove the database, evidence files, preferences and the token.
 - **Just the account:** Settings > OSM account > Log out.
 - **Just evidence:** the To review screen deletes rows and their files.
@@ -130,5 +130,5 @@ The app is not directed at children and collects nothing from anyone.
 ## Changes and contact
 
 This file is versioned with the source code at
-https://github.com/skfd/FixMeAwesome/blob/main/PRIVACY.md; changes show in its history. Questions
+https://github.com/skfd/OSMFieldNotes/blob/main/PRIVACY.md; changes show in its history. Questions
 go to the issue tracker of that repository.

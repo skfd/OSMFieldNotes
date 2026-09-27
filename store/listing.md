@@ -5,15 +5,15 @@ Source of truth for the Play Store (and any other store) listing. Keep the lengt
 
 ## Title
 
-FixMeAwesome
+OSM Field Notes
 
 ## Short description (80 characters max)
 
-Walk, get pinged near OSM notes and fixmes, and fix the map on the spot.
+Pings you when an open OSM note or fixme is nearby. Walk, then fix the map on the spot.
 
 ## Full description
 
-FixMeAwesome is for OpenStreetMap contributors who like long walks and want those walks to
+OSM Field Notes is for OpenStreetMap contributors who like long walks and want those walks to
 fix the map.
 
 Instead of a list of points you bring along, the app pulls the things OpenStreetMap itself
@@ -29,7 +29,7 @@ THE LOOP
 4. Notes are handled in the app: read the thread, comment, close, reopen, or drop a new note
    where you stand. Actions taken offline are queued and sent later.
 5. Fixmes are handed to a real editor: StreetComplete or Vespucci if installed, or
-   openstreetmap.org. FixMeAwesome does not edit map data itself.
+   openstreetmap.org. OSM Field Notes does not edit map data itself.
 6. Cannot deal with it now? Pin a photo or a text to the item and review it at your desk later.
 
 WHAT ELSE
@@ -55,7 +55,7 @@ PRIVACY
 Everything stays on your phone. The app sends only the map area it needs to
 openstreetmap.org and overpass-api.de, and what you choose to post. No analytics, no ads, no
 crash reporting service. Full policy:
-https://github.com/skfd/FixMeAwesome/blob/main/PRIVACY.md
+https://github.com/skfd/OSMFieldNotes/blob/main/PRIVACY.md
 
 Free and open source. Map data (c) OpenStreetMap contributors.
 

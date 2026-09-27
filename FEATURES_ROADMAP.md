@@ -1,4 +1,4 @@
-# FixMeAwesome - Roadmap
+# OSM Field Notes - Roadmap
 
 **Purpose:** walk, get pinged when you are near an open OSM Note or a `fixme`-tagged object, and deal with it on the spot: notes in the app, map data through an external editor, or capture evidence for later.
 
@@ -56,6 +56,7 @@ Each item is one session-sized piece of work. Ticks go here; do not renumber.
 15. [x] **Rename.** (done 2026-09-25, v1.2.20; labels and docs only, package id and data files unchanged) App name, package label and docs from "Survey Me" to FixMeAwesome (package id stays `com.surveyme` unless a release is far off enough to change it).
 16. [x] **Release prep.** (done 2026-09-25, v1.2.21; icon, privacy policy, R8, signing wiring, listing text; screenshots and the license decision still owed) Adaptive icon, privacy policy (location, OSM account), ProGuard rules, signed build, listing text and screenshots.
 17. [x] **Tests around the loop.** (done 2026-09-25, v1.2.22; notes API client over MockWebServer, refetch gates and backoff with an injected clock, proximity with a fake clock; instrumented test compiles but has not run on a device) Unit tests for the notes API client, the refetch trigger, proximity logic, and the classifier against `analysis/toronto_open_notes.json`. One instrumented test for the deep-link.
+18. [x] **Name.** (done 2026-09-26, v1.2.23; labels, docs, User-Agent `OSMFieldNotes/`, OAuth scheme `osmfieldnotes://`, keystore names and the GitHub repo `skfd/OSMFieldNotes`; package id and data files unchanged as in item 15) Rename from FixMeAwesome to OSM Field Notes: a category of activity rather than a pun, unclaimed in the OSM ecosystem, with the nearby ping as the store tagline. Chosen over "OSM Notes Nearby" (exact but awkward) after checking Play, F-Droid, GitHub and the OSM wiki for collisions.
 
 ## Note classes
 

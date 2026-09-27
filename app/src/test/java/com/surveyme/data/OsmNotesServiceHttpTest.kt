@@ -92,7 +92,7 @@ class OsmNotesServiceHttpTest {
         assertEquals("/api/0.6/notes.json", url.encodedPath)
         assertEquals("7", url.queryParameter("closed"))
         assertEquals(OsmNotesService.PAGE_LIMIT.toString(), url.queryParameter("limit"))
-        assertTrue(request.getHeader("User-Agent")!!.startsWith("FixMeAwesome/"))
+        assertTrue(request.getHeader("User-Agent")!!.startsWith("OSMFieldNotes/"))
         assertNull(request.getHeader("Authorization"))
 
         // bbox is min_lon,min_lat,max_lon,max_lat and brackets the centre by about 2 km.

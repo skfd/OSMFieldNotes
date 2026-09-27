@@ -113,7 +113,7 @@ class OverpassService {
 
         val request = Request.Builder()
             .url(url)
-            .header("User-Agent", "FixMeAwesome/${BuildConfig.VERSION_NAME}")
+            .header("User-Agent", "OSMFieldNotes/${BuildConfig.VERSION_NAME}")
             .build()
 
         client.newCall(request).execute().use { response ->

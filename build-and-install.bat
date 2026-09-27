@@ -68,7 +68,7 @@ echo.
 :: Optional: Launch the app
 set /p LAUNCH=Do you want to launch the app? (Y/N):
 if /i "%LAUNCH%"=="Y" (
-    echo Launching FixMeAwesome...
+    echo Launching OSM Field Notes...
     adb shell am start -n com.surveyme.debug/com.surveyme.presentation.MainActivity
 )
 

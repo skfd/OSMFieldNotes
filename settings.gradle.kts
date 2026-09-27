@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FixMeAwesome"
+rootProject.name = "OSMFieldNotes"
 include(":app")

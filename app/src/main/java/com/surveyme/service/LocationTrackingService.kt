@@ -490,7 +490,7 @@ class LocationTrackingService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("FixMeAwesome - Tracking")
+            .setContentTitle("OSM Field Notes - Tracking")
             .setContentText("Recording your survey route")
             .setSmallIcon(R.drawable.ic_home)
             .setContentIntent(pendingIntent)
@@ -503,7 +503,7 @@ class LocationTrackingService : Service() {
         lastNotificationAt = System.currentTimeMillis()
         val tier = (requestedTier ?: tierSelector.tier).name.lowercase()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("FixMeAwesome - Tracking")
+            .setContentTitle("OSM Field Notes - Tracking")
             .setContentText("$tier · ${location.latitude.format(5)}, ${location.longitude.format(5)}")
             .setSmallIcon(R.drawable.ic_home)
             .setOngoing(true)

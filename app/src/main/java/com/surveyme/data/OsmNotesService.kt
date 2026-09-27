@@ -55,7 +55,7 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
         /** The API caps a bbox query; a 2 km square in a city holds a few dozen notes. */
         const val PAGE_LIMIT = 500
         private const val DESCRIPTION_MAX = 200
-        private const val USER_AGENT = "FixMeAwesome/${BuildConfig.VERSION_NAME}"
+        private const val USER_AGENT = "OSMFieldNotes/${BuildConfig.VERSION_NAME}"
         private const val ERROR_BODY_MAX = 300
     }
 

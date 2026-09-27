@@ -1,6 +1,6 @@
-# FixMeAwesome Build and Install Script
+# OSM Field Notes Build and Install Script
 
-Write-Host "FixMeAwesome - Build and Install Script" -ForegroundColor Cyan
+Write-Host "OSM Field Notes - Build and Install Script" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -106,7 +106,7 @@ if ($installResult -match "Success") {
 Write-Host ""
 $launch = Read-Host "Do you want to launch the app? (Y/N)"
 if ($launch -eq "Y" -or $launch -eq "y") {
-    Write-Host "Launching FixMeAwesome..." -ForegroundColor Yellow
+    Write-Host "Launching OSM Field Notes..." -ForegroundColor Yellow
     adb shell am start -n com.surveyme.debug/com.surveyme.presentation.MainActivity
 }
 

@@ -39,8 +39,8 @@ android {
         applicationId = "com.surveyme"
         minSdk = 23
         targetSdk = 35
-        versionCode = 30
-        versionName = "1.2.22"
+        versionCode = 31
+        versionName = "1.2.23"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -48,7 +48,7 @@ android {
         }
 
         buildConfigField("String", "OSM_OAUTH_CLIENT_ID", "\"${localProperty("OSM_OAUTH_CLIENT_ID", "")}\"")
-        buildConfigField("String", "OSM_OAUTH_REDIRECT_URI", "\"${localProperty("OSM_OAUTH_REDIRECT_URI", "fixmeawesome://oauth/callback")}\"")
+        buildConfigField("String", "OSM_OAUTH_REDIRECT_URI", "\"${localProperty("OSM_OAUTH_REDIRECT_URI", "osmfieldnotes://oauth/callback")}\"")
         buildConfigField("String", "OSM_OAUTH_BASE_URL", "\"${localProperty("OSM_OAUTH_BASE_URL", "https://www.openstreetmap.org")}\"")
     }
 

@@ -1,4 +1,4 @@
-# Releasing FixMeAwesome
+# Releasing OSM Field Notes
 
 Short checklist. FIRST_RUN.md explains the one-time keystore setup; PRIVACY.md and
 `store/listing.md` are the texts a store listing needs.
@@ -37,7 +37,7 @@ Short checklist. FIRST_RUN.md explains the one-time keystore setup; PRIVACY.md a
    to the GitHub release; paste the changelog entry as the release notes.
 8. **Store.** Update the listing text from `store/listing.md` if it changed, and the
    screenshots if the UI did. Play Console asks for the privacy policy URL:
-   https://github.com/skfd/FixMeAwesome/blob/main/PRIVACY.md
+   https://github.com/skfd/OSMFieldNotes/blob/main/PRIVACY.md
 9. **Open the next dev version.** Bump `versionCode` and set `versionName` to the next patch
    with a `-dev` suffix as the last commit of the release.
 

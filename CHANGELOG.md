@@ -1,4 +1,9 @@
-# FixMeAwesome - Changelog
+# OSM Field Notes - Changelog
+
+## Version 1.2.23 (2026-09-26)
+
+**Name workshop**: "lets workshop the project name", then "rename what you can"
+The app is now OSM Field Notes. Round one put eight directions on the table, round two narrowed to the finalists "OSM Field Notes" and "OSM Notes Nearby"; both were clear of collisions on Play, F-Droid, GitHub and the OSM wiki, and "OSM field notes" turned out to be plain survey vocabulary nobody has claimed (Field Papers is the only near neighbour). Field Notes won as a category of activity, with the nearby ping moved into the store tagline. Renamed: the launcher label, welcome string, notification title and permission dialogs, `Constants.APP_NAME`, `rootProject.name` (`OSMFieldNotes`), the three User-Agents and their test (`OSMFieldNotes/<version>`), the OAuth redirect scheme (`osmfieldnotes://oauth/callback`, in the manifest, gradle default, docs and example properties; no client was registered yet so nothing breaks), the keystore file name, alias and CN in FIRST_RUN and the example properties (no keystore exists yet), the GitHub repo (`gh repo rename OSMFieldNotes`, remote updated, the four privacy-policy URLs follow; the old URL redirects), and every doc, script banner and the listing (short description now leads with the ping). README and CLAUDE.md lose the stale `survey-me` clone lines. `copy-to-dropbox.ps1` resolves the APK from `$PSScriptRoot` so it survives the folder rename, which is left to the maintainer. Unchanged, as in item 15: package id `com.surveyme`, Kotlin packages and `SurveyMe*` classes, FileProvider authority, on-device file names, old changelog entries and roadmap item 15.
 
 ## Version 1.2.22 (2026-09-25)
 
