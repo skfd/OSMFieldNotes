@@ -308,23 +308,22 @@ class PoiRepository(
     suspend fun deleteEvidence(id: Long) = evidenceDao.delete(id)
 
     /**
-     * Store one page of notes fetched around ([lat], [lon]). In one transaction: expire note
-     * rows outside the radius, drop in-radius notes the API no longer returns (it returns open
-     * notes and ones closed within 7 days, so an absent note is closed or hidden) unless they
-     * were closed within [Constants.NOTE_CLOSED_RETENTION_MILLIS], then merge the page in,
-     * keeping ping flags on the POI and reclassifying each note. When [truncated] the
-     * page is not the whole area and nothing in radius is dropped. Returns how many rows went.
+     * Store one page of notes fetched for the area [inArea] describes (a circle around the
+     * walker, or the whole-city box). In one transaction: expire note rows outside the area,
+     * drop in-area notes the API no longer returns (it returns open notes and ones closed
+     * within 7 days, so an absent note is closed or hidden) unless they were closed within
+     * [Constants.NOTE_CLOSED_RETENTION_MILLIS], then merge the page in, keeping ping flags on
+     * the POI and reclassifying each note. When [truncated] the page is not the whole area and
+     * nothing in it is dropped. Returns how many rows went.
      */
     suspend fun storeFetchedNotes(
         page: List<FetchedNote>,
-        lat: Double,
-        lon: Double,
-        radiusMeters: Int,
+        inArea: (Poi) -> Boolean,
         truncated: Boolean,
         now: Long = System.currentTimeMillis()
     ): Int = database.withTransaction {
         val source = OsmNotesService.SOURCE_NOTES
-        val expiredOutside = expireOutsideRadius(source, lat, lon, radiusMeters)
+        val expiredOutside = expireOutside(source, inArea)
 
         var dropped = 0
         if (!truncated) {
@@ -389,14 +388,13 @@ class PoiRepository(
     suspend fun getPoisBySource(source: String): List<Poi> = poiDao.getPoisBySource(source)
 
     /**
-     * Delete rows of [source] farther than [radiusMeters] from the centre. Called after a
-     * successful refetch so the stored set follows the walker. Muted or visited rows that
-     * fall outside the radius go too; their flags only survive while they stay in range.
-     * Returns how many were removed.
+     * Delete rows of [source] outside the fetched area. Called after a successful refetch so
+     * the stored set follows the walker (or the city). Muted or visited rows that fall outside
+     * go too; their flags only survive while they stay in range. Returns how many were removed.
      */
-    suspend fun expireOutsideRadius(source: String, lat: Double, lon: Double, radiusMeters: Int): Int {
+    suspend fun expireOutside(source: String, inArea: (Poi) -> Boolean): Int {
         val candidates = poiDao.getPoisBySource(source)
-            .filter { it.distanceTo(lat, lon) > radiusMeters }
+            .filterNot(inArea)
             .map { it.id }
         // A placeholder for a queued create (long-pressed far away, say) stays until it is posted.
         val pending = if (source == OsmNotesService.SOURCE_NOTES && candidates.isNotEmpty()) {
@@ -404,7 +402,7 @@ class PoiRepository(
         } else emptySet()
         val stale = candidates.filter { it !in pending }
         deletePoisAndNotes(stale)
-        if (stale.isNotEmpty()) Timber.d("Expired ${stale.size} $source rows beyond ${radiusMeters}m")
+        if (stale.isNotEmpty()) Timber.d("Expired ${stale.size} $source rows outside the fetch area")
         return stale.size
     }
 

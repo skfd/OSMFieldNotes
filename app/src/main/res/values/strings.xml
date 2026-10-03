@@ -112,8 +112,15 @@
 
     <!-- The loop (item 13) -->
     <string name="settings_loop">Pings and fetching</string>
-    <string name="settings_fetch_radius">Fetch radius</string>
-    <string name="settings_fetch_radius_hint">Notes and fixmes are fetched this far around you; refetched when you move half of it.</string>
+    <string name="settings_fetch_radius">Fetch area</string>
+    <string name="settings_fetch_radius_hint">Notes and fixmes are fetched this far around you and refetched when you move half of it, or the whole city you pick, refreshed hourly.</string>
+    <string name="fetch_whole_city">Whole city…</string>
+    <string name="fetch_city_looking_up">Looking up the city you are in…</string>
+    <string name="fetch_city_no_location">No location yet. Open the map or start tracking first.</string>
+    <string name="fetch_city_failed">Could not pick a city here: %1$s</string>
+    <string name="fetch_city_confirm_title">Fetch all of %1$s?</string>
+    <string name="fetch_city_confirm_message">Every open note and fixme in the city is fetched once now and refreshed hourly, wherever you walk. The city stays fixed until you pick a radius, or Whole city again where you are then.</string>
+    <string name="fetch_city_use">Use this city</string>
     <string name="settings_ping_radius">Ping radius</string>
     <string name="settings_ping_radius_hint">How close a note or fixme must be to ping.</string>
     <string name="settings_ping_classes">Notes that ping</string>

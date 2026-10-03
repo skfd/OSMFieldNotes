@@ -2,6 +2,7 @@ package com.surveyme.data
 
 import android.location.Location
 import com.surveyme.core.Constants
+import com.surveyme.core.FetchCity
 import com.surveyme.core.PreferencesManager
 import com.surveyme.data.model.Poi
 import com.surveyme.data.repository.PoiRepository
@@ -25,6 +26,10 @@ import java.io.IOException
  * which keeps muted, visited and last-ping flags on rows that already existed. Notes also go
  * through [PoiRepository.storeFetchedNotes], which drops in-radius notes the API stopped
  * returning unless they were closed recently.
+ *
+ * With a [PreferencesManager.fetchCity] set, the area is that city instead of a circle: the
+ * caller's point is ignored, movement never triggers a refetch, only an hour's staleness or a
+ * different city does, and expiry keeps everything inside the city's box.
  */
 class NearbyFetcher(
     private val repository: PoiRepository,
@@ -74,11 +79,35 @@ class NearbyFetcher(
     private var legacyPurged = false
 
     /**
+     * What one fetch covers. [lat], [lon] and [radiusMeters] are what the fetch centre is saved
+     * with ([radiusMeters] is 0 for a city); [contains] is the expiry and the in-range filter.
+     */
+    private class Area(
+        val key: String,
+        val lat: Double,
+        val lon: Double,
+        val radiusMeters: Int,
+        val city: FetchCity?,
+        val contains: (Poi) -> Boolean
+    ) {
+        override fun toString() = city?.let { "${it.name} ($key)" } ?: "$lat,$lon r=${radiusMeters}m"
+    }
+
+    private fun areaFor(lat: Double, lon: Double, radiusMeters: Int): Area {
+        val city = prefs.fetchCity
+        return if (city != null) {
+            Area(city.areaKey, city.centreLat, city.centreLon, 0, city) { city.contains(it.latitude, it.longitude) }
+        } else {
+            Area(FetchCity.radiusAreaKey(radiusMeters), lat, lon, radiusMeters, null) { it.distanceTo(lat, lon) <= radiusMeters }
+        }
+    }
+
+    /**
      * Cheap pre-check for the tracking service so it does not launch a coroutine on every
      * location update. True when either source would want a refetch here, before rate limits.
      */
     fun wantsRefetch(lat: Double, lon: Double, now: Long = clock()): Boolean {
-        if (isNoPosition(lat, lon)) return false
+        if (prefs.fetchCity == null && isNoPosition(lat, lon)) return false
         // A source counts only when its gate is open (no min interval or backoff pending) and it
         // has moved or gone stale; otherwise a backed-off source would launch a no-op every tick.
         return listOf(notesGate, fixmesGate).any { gate ->
@@ -87,8 +116,9 @@ class NearbyFetcher(
     }
 
     /**
-     * Fetch both sources around ([lat], [lon]) if their gates allow. Never throws. The radius
-     * is the item 13 setting unless the caller says otherwise; the expiry uses the same value.
+     * Fetch both sources around ([lat], [lon]) if their gates allow, or the whole city when
+     * one is set (the point is then ignored). Never throws. The radius is the item 13 setting
+     * unless the caller says otherwise; the expiry uses the same area.
      */
     suspend fun fetch(
         lat: Double,
@@ -96,7 +126,8 @@ class NearbyFetcher(
         trigger: Trigger,
         radiusMeters: Int = prefs.fetchRadiusMeters
     ): Report {
-        if (isNoPosition(lat, lon)) {
+        val area = areaFor(lat, lon, radiusMeters)
+        if (area.city == null && isNoPosition(lat, lon)) {
             // The map's default centre before any position was ever saved; fetching there would
             // store 0,0 as the centre and expire everything real.
             Timber.d("Fetch ($trigger) skipped: no position yet")
@@ -113,27 +144,36 @@ class NearbyFetcher(
                 legacyPurged = true
             }
 
+            val city = area.city
             val notes = fetchSource(
-                notesGate, lat, lon, trigger, radiusMeters,
-                call = { notesService.fetchNotes(lat, lon, radiusMeters) },
+                notesGate, area, trigger,
+                call = {
+                    if (city != null) notesService.fetchNotesInBox(city.west, city.south, city.east, city.north)
+                    else notesService.fetchNotes(lat, lon, radiusMeters)
+                },
                 items = { page -> page.notes },
                 poiOf = { it.poi },
                 store = { page, inRange ->
-                    repository.storeFetchedNotes(inRange, lat, lon, radiusMeters, page.truncated)
+                    repository.storeFetchedNotes(inRange, area.contains, page.truncated)
                 }
             )
             val fixmes = fetchSource(
-                fixmesGate, lat, lon, trigger, radiusMeters,
-                call = { withContext(Dispatchers.IO) { overpassService.fetchFixmePois(lat, lon, radiusMeters) } },
+                fixmesGate, area, trigger,
+                call = {
+                    withContext(Dispatchers.IO) {
+                        if (city != null) overpassService.fetchFixmePoisInRelation(city.relationId)
+                        else overpassService.fetchFixmePois(lat, lon, radiusMeters)
+                    }
+                },
                 items = { it },
                 poiOf = { it },
                 store = { _, inRange ->
-                    val expired = repository.expireOutsideRadius(fixmesGate.source, lat, lon, radiusMeters)
+                    val expired = repository.expireOutside(fixmesGate.source, area.contains)
                     repository.insertPois(inRange)
                     expired
                 }
             )
-            return Report(notes, fixmes).also { Timber.i("Fetch ($trigger) at $lat,$lon: ${it.describe()}") }
+            return Report(notes, fixmes).also { Timber.i("Fetch ($trigger) for $area: ${it.describe()}") }
         } finally {
             running.unlock()
         }
@@ -141,15 +181,13 @@ class NearbyFetcher(
 
     /**
      * One gated fetch of a source. [call] hits the network and answers a page [P]; [items] and
-     * [poiOf] let the circle filter see each item's POI; [store] writes the in-range items and
+     * [poiOf] let the area filter see each item's POI; [store] writes the in-range items and
      * returns how many stored rows it expired or dropped.
      */
     private suspend fun <P, T> fetchSource(
         gate: Gate,
-        lat: Double,
-        lon: Double,
+        area: Area,
         trigger: Trigger,
-        radiusMeters: Int,
         call: suspend () -> P,
         items: (P) -> List<T>,
         poiOf: (T) -> Poi,
@@ -157,7 +195,7 @@ class NearbyFetcher(
     ): Outcome {
         val now = clock()
 
-        val why = if (trigger == Trigger.MANUAL) "manual" else movedOrStale(gate.source, lat, lon, now)
+        val why = if (trigger == Trigger.MANUAL) "manual" else movedOrStale(gate.source, area.lat, area.lon, now)
         if (why == null) {
             return Outcome.Skipped("not moved far enough and not stale").also {
                 Timber.d("${gate.source}: ${it.reason}")
@@ -172,7 +210,7 @@ class NearbyFetcher(
             }
         }
 
-        Timber.d("${gate.source}: fetching ($why) around $lat,$lon r=${radiusMeters}m")
+        Timber.d("${gate.source}: fetching ($why) for $area")
         val fresh = try {
             call()
         } catch (e: FetchHttpException) {
@@ -186,12 +224,12 @@ class NearbyFetcher(
 
         // The notes API answers a bounding square; keep the stored set a circle so items in the
         // corners do not get inserted and then expired on every fetch.
-        val inRange = items(fresh).filter { poiOf(it).distanceTo(lat, lon) <= radiusMeters }
+        val inRange = items(fresh).filter { area.contains(poiOf(it)) }
         val expired = store(fresh, inRange)
 
         gate.backoffMillis = 0L
         gate.nextAllowedAt = now + Constants.FETCH_MIN_INTERVAL_MILLIS
-        prefs.saveFetchCentre(gate.source, PreferencesManager.FetchCentre(lat, lon, radiusMeters, now))
+        prefs.saveFetchCentre(gate.source, PreferencesManager.FetchCentre(area.lat, area.lon, area.radiusMeters, now, area.key))
         return Outcome.Fetched(inRange.size, expired)
     }
 
@@ -210,12 +248,17 @@ class NearbyFetcher(
      * Why this source wants a refetch at the point, or null if the last fetch still covers it.
      * The movement threshold is half the radius the last fetch was made with; a changed radius
      * setting is its own reason, or growing 2 km to 5 km would do nothing until the walker had
-     * moved 1 km or 15 min had passed.
+     * moved 1 km or 15 min had passed. Switching to or from a city, or between cities, is a
+     * reason too. A city never moves, so only its own longer staleness refetches it.
      */
     private fun movedOrStale(source: String, lat: Double, lon: Double, now: Long): String? {
         val last = prefs.getFetchCentre(source) ?: return "never fetched"
-        val wanted = prefs.fetchRadiusMeters
-        if (last.radiusMeters != wanted) return "radius changed ${last.radiusMeters}m to ${wanted}m"
+        val wanted = prefs.fetchAreaKey
+        if (last.areaKey != wanted) return "area changed ${last.areaKey} to $wanted"
+        if (prefs.fetchCity != null) {
+            val age = now - last.timeMillis
+            return if (age > Constants.CITY_FETCH_STALE_MILLIS) "city stale, ${age / 60000}min old" else null
+        }
         val results = FloatArray(1)
         Location.distanceBetween(last.latitude, last.longitude, lat, lon, results)
         val moved = results[0].toInt()

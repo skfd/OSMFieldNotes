@@ -1,5 +1,14 @@
 # OSM Field Notes - Changelog
 
+## Version 1.2.24 (2026-10-03)
+
+**Compass and whole city**: "compass does not work well. see notes has radius, let's also give option to show all in current city -- is this implementable?" (compass: wrong after rotating the map; city: yes, a fixed one)
+
+- **The map's compass now points at the map's north and turns the map back to north up when you tap it.** osmdroid's `CompassOverlay` drew the phone's sensor heading and ignored a two-finger rotation, so after one it showed a north the map no longer had. A mini button top right follows the map's own orientation (from a draw-only overlay, the one hook that sees gestures and animations alike), shows only while the map is turned, and animates back to 0°. The orientation-sensor listener is gone with it. Verified hidden at north up on an emulator; the twist itself needs a phone.
+- **Fetch area can now be the whole city you are in, so every open note and fixme in it is on the map and in the list.** ![Fetch area set to Toronto](docs/changelog/1.2.24-fetch-area-city.png) Settings' "Fetch radius" row is now "Fetch area" with a fifth choice, "Whole city…": one Nominatim reverse lookup at city zoom where you stand (else the map centre) names the boundary relation, you confirm "Fetch all of Toronto?", and the city is stored fixed (`PreferencesManager.fetchCity`) until you pick a radius or look up again. Notes come from `notes.json` over the city's bounding box with the API's maximum limit (10000), fixmes from an Overpass area query on the relation (`map_to_area`, 90 s timeout); notes therefore include the slices of neighbours inside the box, fixmes follow the boundary. Walking never refetches a city; it refreshes hourly, and switching radius, city or between cities is its own reason, via an area key now saved with each fetch centre (older centres read back as their radius). Expiry and the in-range filter take an area predicate instead of a radius (`PoiRepository.expireOutside`, `storeFetchedNotes(page, inArea, truncated)`). Lookups refuse a place that is not a boundary relation or whose box is over the notes API's 25 square degrees.
+  ![Toronto pins](docs/changelog/1.2.24-toronto-pins.png) Checked on an emulator at Toronto: 326 notes and 797 fixmes, 1123 pins drawn; city-view panning ran at a median 18 ms and 90th percentile 34 ms per frame there, so no marker culling yet.
+- Tests: `CityLookupTest` (a real Toronto answer, node/error/oversized refusals), five city cases in `NearbyFetcherTest` (no position needed, walking vs hourly staleness, area switches, box expiry, legacy centres), two box-fetch cases in `OsmNotesServiceHttpTest`; 145 pass.
+
 ## Version 1.2.23 (2026-09-26)
 
 **Name workshop**: "lets workshop the project name", then "rename what you can"

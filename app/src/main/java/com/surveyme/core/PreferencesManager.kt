@@ -32,6 +32,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_FIXME_MAX_AGE = "fixme_max_age"
         private const val KEY_FETCH_RADIUS = "fetch_radius_m"
         private const val KEY_PING_RADIUS = "ping_radius_m"
+        private const val KEY_FETCH_CITY_PREFIX = "fetch_city_"
         private const val KEY_PING_CLASSES = "ping_classes"
         private const val KEY_MUTE_NOTES = "mute_notes"
         private const val KEY_MUTE_FIXMES = "mute_fixmes"
@@ -74,6 +75,40 @@ class PreferencesManager(context: Context) {
             prefs.edit().putInt(KEY_FETCH_RADIUS, value).apply()
             bumpLoopSettings()
         }
+
+    /**
+     * The city to fetch whole instead of a circle around the walker, or null for the radius.
+     * Picked in Settings; [fetchRadiusMeters] is kept underneath for when it is cleared.
+     */
+    var fetchCity: FetchCity?
+        get() {
+            if (!prefs.contains("${KEY_FETCH_CITY_PREFIX}id")) return null
+            fun d(key: String) = java.lang.Double.longBitsToDouble(prefs.getLong("$KEY_FETCH_CITY_PREFIX$key", 0L))
+            return FetchCity(
+                relationId = prefs.getLong("${KEY_FETCH_CITY_PREFIX}id", 0L),
+                name = prefs.getString("${KEY_FETCH_CITY_PREFIX}name", null) ?: "",
+                south = d("s"), west = d("w"), north = d("n"), east = d("e")
+            )
+        }
+        set(value) {
+            prefs.edit().apply {
+                val keys = listOf("id", "name", "s", "w", "n", "e")
+                if (value == null) {
+                    keys.forEach { remove("$KEY_FETCH_CITY_PREFIX$it") }
+                } else {
+                    fun d(key: String, v: Double) = putLong("$KEY_FETCH_CITY_PREFIX$key", java.lang.Double.doubleToRawLongBits(v))
+                    putLong("${KEY_FETCH_CITY_PREFIX}id", value.relationId)
+                    putString("${KEY_FETCH_CITY_PREFIX}name", value.name)
+                    d("s", value.south); d("w", value.west); d("n", value.north); d("e", value.east)
+                }
+                apply()
+            }
+            bumpLoopSettings()
+        }
+
+    /** The key a fetch made now would be saved under: the city's, or the radius's. */
+    val fetchAreaKey: String
+        get() = fetchCity?.areaKey ?: FetchCity.radiusAreaKey(fetchRadiusMeters)
 
     /** How close a note or fixme must be to ping, metres. Imported waypoints keep their own radius. */
     var pingRadiusMeters: Int
@@ -186,8 +221,18 @@ class PreferencesManager(context: Context) {
             bumpLoopSettings()
         }
 
-    /** Where and when a source was last fetched successfully. */
-    data class FetchCentre(val latitude: Double, val longitude: Double, val radiusMeters: Int, val timeMillis: Long)
+    /**
+     * Where and when a source was last fetched successfully. [areaKey] says what was fetched
+     * ([FetchCity.areaKey] or [FetchCity.radiusAreaKey]); centres saved before it existed read
+     * back as their radius's key.
+     */
+    data class FetchCentre(
+        val latitude: Double,
+        val longitude: Double,
+        val radiusMeters: Int,
+        val timeMillis: Long,
+        val areaKey: String = FetchCity.radiusAreaKey(radiusMeters)
+    )
 
     fun saveFetchCentre(source: String, centre: FetchCentre) {
         prefs.edit().apply {
@@ -195,17 +240,20 @@ class PreferencesManager(context: Context) {
             putLong("$KEY_FETCH_PREFIX${source}_lon", java.lang.Double.doubleToRawLongBits(centre.longitude))
             putInt("$KEY_FETCH_PREFIX${source}_radius", centre.radiusMeters)
             putLong("$KEY_FETCH_PREFIX${source}_time", centre.timeMillis)
+            putString("$KEY_FETCH_PREFIX${source}_area", centre.areaKey)
             apply()
         }
     }
 
     fun getFetchCentre(source: String): FetchCentre? {
         if (!prefs.contains("$KEY_FETCH_PREFIX${source}_time")) return null
+        val radius = prefs.getInt("$KEY_FETCH_PREFIX${source}_radius", Constants.FETCH_RADIUS_METERS)
         return FetchCentre(
             latitude = java.lang.Double.longBitsToDouble(prefs.getLong("$KEY_FETCH_PREFIX${source}_lat", 0L)),
             longitude = java.lang.Double.longBitsToDouble(prefs.getLong("$KEY_FETCH_PREFIX${source}_lon", 0L)),
-            radiusMeters = prefs.getInt("$KEY_FETCH_PREFIX${source}_radius", Constants.FETCH_RADIUS_METERS),
-            timeMillis = prefs.getLong("$KEY_FETCH_PREFIX${source}_time", 0L)
+            radiusMeters = radius,
+            timeMillis = prefs.getLong("$KEY_FETCH_PREFIX${source}_time", 0L),
+            areaKey = prefs.getString("$KEY_FETCH_PREFIX${source}_area", null) ?: FetchCity.radiusAreaKey(radius)
         )
     }
 

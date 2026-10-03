@@ -37,6 +37,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
 import com.surveyme.core.FixmeMaxAge
+import com.surveyme.core.LastKnownLocation
+import com.surveyme.data.CityLookup
 import com.surveyme.core.NoteLabels
 import com.surveyme.core.PingSettings
 import com.surveyme.core.QuietHours
@@ -136,11 +138,20 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
             rowFetchRadius.setOnClickListener {
                 val choices = PreferencesManager.FETCH_RADIUS_CHOICES
+                // The radii, then "Whole city" last; picking it again looks the city up again.
                 singleChoice(
                     R.string.settings_fetch_radius,
-                    choices.map { getString(R.string.radius_km, it / 1000) },
-                    choices.indexOf(prefs.fetchRadiusMeters)
-                ) { prefs.fetchRadiusMeters = choices[it]; renderLoopValues() }
+                    choices.map { getString(R.string.radius_km, it / 1000) } + getString(R.string.fetch_whole_city),
+                    if (prefs.fetchCity != null) choices.size else choices.indexOf(prefs.fetchRadiusMeters)
+                ) {
+                    if (it == choices.size) {
+                        pickWholeCity()
+                    } else {
+                        prefs.fetchCity = null
+                        prefs.fetchRadiusMeters = choices[it]
+                        renderLoopValues()
+                    }
+                }
             }
             rowPingRadius.setOnClickListener {
                 val choices = PreferencesManager.PING_RADIUS_CHOICES
@@ -203,6 +214,40 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         }
     }
 
+    /**
+     * "Whole city": look up the boundary around where the user stands (else the map centre),
+     * confirm it by name, store it fixed, and fetch it once now.
+     */
+    private fun pickWholeCity() {
+        val context = requireContext()
+        val here = LastKnownLocation.get(context)?.let { it.latitude to it.longitude }
+            ?: preferencesManager.getLastMapPosition()?.let { it.first to it.second }
+        if (here == null) {
+            Toast.makeText(context, R.string.fetch_city_no_location, Toast.LENGTH_LONG).show()
+            return
+        }
+        Toast.makeText(context, R.string.fetch_city_looking_up, Toast.LENGTH_SHORT).show()
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching { CityLookup().cityAt(here.first, here.second) }
+            if (view == null) return@launch
+            result.onSuccess { city ->
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(getString(R.string.fetch_city_confirm_title, city.name))
+                    .setMessage(R.string.fetch_city_confirm_message)
+                    .setPositiveButton(R.string.fetch_city_use) { _, _ ->
+                        preferencesManager.fetchCity = city
+                        renderLoopValues()
+                        findOsmNotesAndFixmes()
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }.onFailure { e ->
+                Timber.w(e, "City lookup failed")
+                Toast.makeText(requireContext(), getString(R.string.fetch_city_failed, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private fun classCheckboxes() = listOf(
         binding.checkClassSurveyor to NoteLabels.SURVEYOR,
         binding.checkClassTelemapper to NoteLabels.TELEMAPPER,
@@ -214,7 +259,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
     private fun renderLoopValues() {
         val prefs = preferencesManager
         with(binding) {
-            textFetchRadius.text = getString(R.string.radius_km, prefs.fetchRadiusMeters / 1000)
+            textFetchRadius.text = prefs.fetchCity?.name ?: getString(R.string.radius_km, prefs.fetchRadiusMeters / 1000)
             textPingRadius.text = getString(R.string.radius_m, prefs.pingRadiusMeters)
             textFixmeAge.text = prefs.fixmeMaxAge.label
             val classes = prefs.pingClasses
@@ -317,13 +362,14 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         val lastLocation = preferencesManager.getLastMapPosition()
         val lat = walker?.latitude ?: lastLocation?.first ?: Constants.DEFAULT_MAP_CENTER_LAT
         val lon = walker?.longitude ?: lastLocation?.second ?: Constants.DEFAULT_MAP_CENTER_LON
-        val where = if (walker != null) "your position" else "map position"
+        val where = preferencesManager.fetchCity?.let { "in ${it.name}" }
+            ?: if (walker != null) "around your position" else "around the map position"
         val fetcher = PoiManager.getFetcher(requireContext())
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Searching for OSM Notes and FIXMEs around $where...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Searching for OSM Notes and FIXMEs $where...", Toast.LENGTH_SHORT).show()
                 }
 
                 // Manual: skips the movement check and minimum interval, still honours a backoff.

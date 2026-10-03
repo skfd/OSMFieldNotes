@@ -54,6 +54,8 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
         const val SOURCE_NOTES = "osm_notes"
         /** The API caps a bbox query; a 2 km square in a city holds a few dozen notes. */
         const val PAGE_LIMIT = 500
+        /** The API's own maximum, for the whole-city box (Toronto: about 330). */
+        const val CITY_PAGE_LIMIT = 10000
         private const val DESCRIPTION_MAX = 200
         private const val USER_AGENT = "OSMFieldNotes/${BuildConfig.VERSION_NAME}"
         private const val ERROR_BODY_MAX = 300
@@ -80,12 +82,26 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
         lat: Double,
         lon: Double,
         radiusMeters: Int = 1000
-    ): NotesPage = withContext(Dispatchers.IO) {
+    ): NotesPage {
         val bbox = calculateBoundingBox(lat, lon, radiusMeters)
+        return fetchNotesInBox(bbox[0], bbox[1], bbox[2], bbox[3], PAGE_LIMIT)
+    }
+
+    /**
+     * Notes inside a box, for the whole-city fetch. Same answers and errors as [fetchNotes];
+     * the API refuses a box over 25 square degrees with a 400 whose text says so.
+     */
+    suspend fun fetchNotesInBox(
+        minLon: Double,
+        minLat: Double,
+        maxLon: Double,
+        maxLat: Double,
+        limit: Int = CITY_PAGE_LIMIT
+    ): NotesPage = withContext(Dispatchers.IO) {
         // closed=N: also return notes closed within N days. Retention in the repository assumes
         // this window, so it is spelled out rather than left to the API default (also 7).
         val closedDays = Constants.NOTE_CLOSED_RETENTION_MILLIS / (24 * 60 * 60 * 1000L)
-        val url = "$baseUrl/api/0.6/notes.json?bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}&limit=$PAGE_LIMIT&closed=$closedDays"
+        val url = "$baseUrl/api/0.6/notes.json?bbox=$minLon,$minLat,$maxLon,$maxLat&limit=$limit&closed=$closedDays"
 
         Timber.d("Fetching OSM notes from API: $url")
         val request = Request.Builder()
@@ -94,13 +110,10 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
             .build()
 
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                Timber.e("OSM Notes API request failed: ${response.code}")
-                throw FetchHttpException(response.code, response.header("Retry-After")?.trim()?.toLongOrNull())
-            }
+            if (!response.isSuccessful) throw httpError(response)
             val responseBody = response.body?.string()
                 ?: throw java.io.IOException("OSM Notes API response body is empty")
-            parseNotesJson(responseBody)
+            parseNotesJson(responseBody, limit = limit)
         }
     }
 
@@ -207,7 +220,7 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
     }
 
     /** Parses a notes.json FeatureCollection. Visible for the item 17 unit tests. */
-    internal fun parseNotesJson(jsonString: String, now: Date = Date()): NotesPage {
+    internal fun parseNotesJson(jsonString: String, now: Date = Date(), limit: Int = PAGE_LIMIT): NotesPage {
         val notes = mutableListOf<FetchedNote>()
         var featureCount = 0
         try {
@@ -221,7 +234,7 @@ class OsmNotesService(private val baseUrl: String = OsmAuthManager.BASE_URL) {
         } catch (e: JSONException) {
             Timber.e(e, "Failed to parse OSM Notes JSON")
         }
-        return NotesPage(notes, truncated = featureCount >= PAGE_LIMIT)
+        return NotesPage(notes, truncated = featureCount >= limit)
     }
 
     /** Parses the single Feature that `notes/{id}.json` and the comment/close/reopen posts answer. */

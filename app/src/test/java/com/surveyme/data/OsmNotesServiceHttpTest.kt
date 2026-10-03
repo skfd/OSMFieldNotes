@@ -81,6 +81,34 @@ class OsmNotesServiceHttpTest {
         MockResponse().setResponseCode(code).setHeader("Content-Type", "application/json").setBody(body)
 
     @Test
+    fun `whole-city box fetch asks the given box with the API's maximum limit`() = runBlocking {
+        server.enqueue(json(notesCollection))
+
+        val page = service.fetchNotesInBox(-79.6392832, 43.5796082, -79.1132193, 43.8554425)
+
+        val url = takeRequest().requestUrl!!
+        assertEquals("/api/0.6/notes.json", url.encodedPath)
+        assertEquals("-79.6392832,43.5796082,-79.1132193,43.8554425", url.queryParameter("bbox"))
+        assertEquals(OsmNotesService.CITY_PAGE_LIMIT.toString(), url.queryParameter("limit"))
+        assertEquals("7", url.queryParameter("closed"))
+        // Two notes against a 10000 limit: the whole box, so absent notes may be dropped.
+        assertFalse(page.truncated)
+        assertEquals(2, page.notes.size)
+    }
+
+    @Test
+    fun `an oversized box surfaces the API's 400 text`() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(400).setBody("The maximum bbox size is 25.0, and your request was too large."))
+        try {
+            service.fetchNotesInBox(-80.0, 40.0, -70.0, 50.0)
+            fail("expected FetchHttpException")
+        } catch (e: FetchHttpException) {
+            assertEquals(400, e.code)
+            assertTrue(e.body!!.contains("maximum bbox size"))
+        }
+    }
+
+    @Test
     fun `bbox fetch asks notes json with closed 7, the page limit and a square around the point`() = runBlocking {
         server.enqueue(json(notesCollection))
 

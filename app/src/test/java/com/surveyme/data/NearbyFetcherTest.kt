@@ -2,6 +2,7 @@ package com.surveyme.data
 
 import org.robolectric.RuntimeEnvironment
 import com.surveyme.core.Constants
+import com.surveyme.core.FetchCity
 import com.surveyme.core.PreferencesManager
 import com.surveyme.data.NearbyFetcher.Outcome
 import com.surveyme.data.NearbyFetcher.Trigger
@@ -55,6 +56,8 @@ class NearbyFetcherTest {
         overpassService = mockk()
         coEvery { notesService.fetchNotes(any(), any(), any()) } returns NotesPage(emptyList(), false)
         every { overpassService.fetchFixmePois(any(), any(), any()) } returns emptyList()
+        coEvery { notesService.fetchNotesInBox(any(), any(), any(), any(), any()) } returns NotesPage(emptyList(), false)
+        every { overpassService.fetchFixmePoisInRelation(any()) } returns emptyList()
         fetcher = NearbyFetcher(repository, prefs, notesService, overpassService, clock = { now })
     }
 
@@ -270,11 +273,77 @@ class NearbyFetcherTest {
         val inside = Poi(id = "in", name = "in", latitude = latAfterMoving(500), longitude = LON, source = OverpassService.SOURCE_FIXME)
         val corner = Poi(id = "corner", name = "corner", latitude = latAfterMoving(1900), longitude = LON - 1900 / (M_PER_DEG_LAT * 0.72), source = OverpassService.SOURCE_FIXME)
         every { overpassService.fetchFixmePois(any(), any(), any()) } returns listOf(inside, corner)
-        coEvery { repository.expireOutsideRadius(any(), any(), any(), any()) } returns 3
+        coEvery { repository.expireOutside(any(), any()) } returns 3
 
         val report = fetch()
 
         assertEquals(Outcome.Fetched(fetched = 1, expired = 3), report.fixmes)
         coVerify { repository.insertPois(listOf(inside)) }
+    }
+
+    // Whole-city mode: Toronto's box as Nominatim gives it.
+    private val toronto = FetchCity(324211L, "Toronto", south = 43.5796082, west = -79.6392832, north = 43.8554425, east = -79.1132193)
+
+    @Test
+    fun `a city fetches its box and relation even with no position yet`() {
+        prefs.fetchCity = toronto
+        assertTrue(fetcher.wantsRefetch(Constants.DEFAULT_MAP_CENTER_LAT, Constants.DEFAULT_MAP_CENTER_LON))
+
+        assertBothFetched(fetch(lat = Constants.DEFAULT_MAP_CENTER_LAT, lon = Constants.DEFAULT_MAP_CENTER_LON))
+
+        coVerify { notesService.fetchNotesInBox(toronto.west, toronto.south, toronto.east, toronto.north, any()) }
+        coVerify { overpassService.fetchFixmePoisInRelation(324211L) }
+        coVerify(exactly = 0) { notesService.fetchNotes(any(), any(), any()) }
+        assertEquals("city:324211", prefs.getFetchCentre(OsmNotesService.SOURCE_NOTES)!!.areaKey)
+    }
+
+    @Test
+    fun `in a city walking never refetches, an hour's staleness does`() {
+        prefs.fetchCity = toronto
+        fetch()
+        now += 20 * MIN
+        assertFalse("15 min staleness is for circles", fetcher.wantsRefetch(latAfterMoving(10_000), LON))
+        assertBothSkipped(fetch(lat = latAfterMoving(10_000)), "not moved far enough")
+        now += 41 * MIN
+        assertTrue(fetcher.wantsRefetch(LAT, LON))
+        assertBothFetched(fetch())
+    }
+
+    @Test
+    fun `switching between radius and city, or between cities, is a refetch reason`() {
+        fetch()
+        now += 2 * MIN
+        prefs.fetchCity = toronto
+        assertTrue(fetcher.wantsRefetch(LAT, LON))
+        assertBothFetched(fetch())
+        now += 2 * MIN
+        prefs.fetchCity = toronto.copy(relationId = 1L, name = "Elsewhere")
+        assertBothFetched(fetch())
+        now += 2 * MIN
+        prefs.fetchCity = null
+        assertBothFetched(fetch())
+        assertEquals("r${prefs.fetchRadiusMeters}", prefs.getFetchCentre(OsmNotesService.SOURCE_NOTES)!!.areaKey)
+    }
+
+    @Test
+    fun `a city keeps everything in its box, far from the walker, and nothing outside`() {
+        prefs.fetchCity = toronto
+        val farInCity = Poi(id = "east", name = "east", latitude = 43.78, longitude = -79.15, source = OverpassService.SOURCE_FIXME)
+        val outside = Poi(id = "out", name = "out", latitude = 44.5, longitude = -79.4, source = OverpassService.SOURCE_FIXME)
+        every { overpassService.fetchFixmePoisInRelation(any()) } returns listOf(farInCity, outside)
+        val inArea = io.mockk.slot<(Poi) -> Boolean>()
+        coEvery { repository.expireOutside(any(), capture(inArea)) } returns 0
+
+        fetch(lat = 43.60, lon = -79.60)
+
+        coVerify { repository.insertPois(listOf(farInCity)) }
+        assertTrue(inArea.captured(farInCity))
+        assertFalse(inArea.captured(outside))
+    }
+
+    @Test
+    fun `a centre saved before area keys reads back as its radius key`() {
+        prefs.saveFetchCentre(OsmNotesService.SOURCE_NOTES, PreferencesManager.FetchCentre(LAT, LON, 2000, START))
+        assertEquals("r2000", prefs.getFetchCentre(OsmNotesService.SOURCE_NOTES)!!.areaKey)
     }
 }

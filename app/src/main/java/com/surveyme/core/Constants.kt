@@ -18,6 +18,8 @@ object Constants {
     const val FETCH_RADIUS_METERS = 2000
     /** Refetch on map load or walker trigger when the last successful fetch is older than this. */
     const val FETCH_STALE_MILLIS = 15 * 60 * 1000L
+    /** A whole-city fetch is a few hundred kB per source and never moves; refresh it hourly. */
+    const val CITY_FETCH_STALE_MILLIS = 60 * 60 * 1000L
     /** Minimum gap between two fetches of the same source, walker and map-load triggers. */
     const val FETCH_MIN_INTERVAL_MILLIS = 60 * 1000L
     /** First backoff after a failed fetch; doubles per failure up to the cap. */

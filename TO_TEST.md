@@ -7,6 +7,14 @@ Roadmap items 2 through 17 were built on 2026-09-25 and 2026-09-26 without a dev
 - Install v1.2.22 **over the existing v1.2.6 install** (not a fresh install). That runs six Room migrations (3 to 9) on real data in one go. Open the Notes tab, Tracks tab and Settings: no crash, old notes and tracks still listed.
 - Register the OSM OAuth client (steps in FIRST_RUN.md: https://www.openstreetmap.org/oauth2/applications/new, redirect URI exactly `osmfieldnotes://oauth/callback`, "Confidential application" unchecked, permissions `write_notes` and `read_prefs`), put `OSM_OAUTH_CLIENT_ID=...` in local.properties, rebuild. Items 5 to 9 are untestable until then.
 
+## Items 19 and 20: compass and whole city (v1.2.24)
+
+- Map tab, north up: no compass button. Twist the map with two fingers: a needle appears top right, its red tip pointing where north now is on the map (follow a north-south street). Keep twisting: the needle follows. Tap it: the map turns back to north up and the button disappears.
+- Settings > Fetch area > Whole city…, standing in Toronto: "Fetch all of Toronto?"; Use this city: the row says Toronto and the toast shows about 330 notes and 800 fixmes found.
+- Map zoomed out to the whole city: all pins drawn; pan and pinch, note whether it drags on the phone.
+- Start tracking and walk: no `fetching` lines in the log for an hour (`city stale, 6xmin old` after that).
+- Pick 2 km again: the next fetch logs `area changed city:324211 to r2000` and the far pins go.
+
 ## Item 2: fetch follows the walker (v1.2.7)
 
 - Start tracking, walk more than 1 km in the GPS simulator; the log should show `osm_notes: fetching (moved ...)`, `osm_fixme: fetching ...`, then `Fetch (WALKER) ...: notes: N found, M expired`; the Notes tab reflects the new area.

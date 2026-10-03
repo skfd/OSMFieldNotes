@@ -32,6 +32,9 @@ class OverpassService {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
+    /** The whole-city query may take most of its 90 s server timeout. */
+    private val cityClient = client.newBuilder().readTimeout(100, TimeUnit.SECONDS).build()
+
     private val gson = Gson()
 
     // `out meta` timestamps are ISO 8601 in UTC; the zone must be set or the age filter is off by hours.
@@ -97,16 +100,37 @@ class OverpassService {
      * Throws [FetchHttpException] on a non-2xx answer (Overpass says 429 or 504 when busy)
      * and [IOException] on network trouble, so the caller can back off.
      */
-    fun fetchFixmePois(lat: Double, lon: Double, radius: Int = 1000): List<Poi> {
-        val query = """
+    fun fetchFixmePois(lat: Double, lon: Double, radius: Int = 1000): List<Poi> = runFixmeQuery(
+        """
             [out:json][timeout:25];
             (
               node["fixme"](around:$radius,$lat,$lon);
               way["fixme"](around:$radius,$lat,$lon);
             );
             out center meta;
-        """.trimIndent()
+        """.trimIndent(),
+        client
+    )
 
+    /**
+     * Fixme-tagged nodes and ways inside the boundary relation [relationId], for the whole-city
+     * fetch (Toronto: about 800). Same rules and errors as [fetchFixmePois]; slower, so it gets
+     * a longer server timeout and read timeout.
+     */
+    fun fetchFixmePoisInRelation(relationId: Long): List<Poi> = runFixmeQuery(
+        """
+            [out:json][timeout:90];
+            rel($relationId);map_to_area->.city;
+            (
+              node["fixme"](area.city);
+              way["fixme"](area.city);
+            );
+            out center meta;
+        """.trimIndent(),
+        cityClient
+    )
+
+    private fun runFixmeQuery(query: String, httpClient: OkHttpClient): List<Poi> {
         val url = "https://overpass-api.de/api/interpreter?data=${java.net.URLEncoder.encode(query, "UTF-8")}"
 
         Timber.d("Fetching FIXME POIs from Overpass API: $url")
@@ -116,7 +140,7 @@ class OverpassService {
             .header("User-Agent", "OSMFieldNotes/${BuildConfig.VERSION_NAME}")
             .build()
 
-        client.newCall(request).execute().use { response ->
+        httpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Timber.e("Overpass API request failed: ${response.code}")
                 throw FetchHttpException(response.code, response.header("Retry-After")?.trim()?.toLongOrNull())
