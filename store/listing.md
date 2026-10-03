@@ -53,7 +53,7 @@ get pinged, hand off fixmes, keep evidence, and post anonymous notes.
 PRIVACY
 
 Everything stays on your phone. The app sends only the map area it needs to
-openstreetmap.org and overpass-api.de, and what you choose to post. No analytics, no ads, no
+openstreetmap.org and overpass-api.de (plus one Nominatim lookup if you pick a whole city), and what you choose to post. No analytics, no ads, no
 crash reporting service. Full policy:
 https://github.com/skfd/OSMFieldNotes/blob/main/PRIVACY.md
 
@@ -84,7 +84,7 @@ Free and open source. Map data (c) OpenStreetMap contributors.
 - Personal info: OSM display name and user id, stored on the device only after the user logs
   in; not sent to the developer.
 - Photos: user-added evidence stays on the device.
-- All network traffic is HTTPS to openstreetmap.org and overpass-api.de; the developer runs
+- All network traffic is HTTPS to openstreetmap.org (including nominatim.openstreetmap.org) and overpass-api.de; the developer runs
   no server and holds no copy of any user data.
 - Deletion: uninstall or clear storage; nothing to request from the developer.
 

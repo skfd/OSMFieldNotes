@@ -197,7 +197,8 @@ class NearbyFetcher(
 
         val why = if (trigger == Trigger.MANUAL) "manual" else movedOrStale(gate.source, area.lat, area.lon, now)
         if (why == null) {
-            return Outcome.Skipped("not moved far enough and not stale").also {
+            val reason = if (area.city != null) "city fetched under an hour ago" else "not moved far enough and not stale"
+            return Outcome.Skipped(reason).also {
                 Timber.d("${gate.source}: ${it.reason}")
             }
         }

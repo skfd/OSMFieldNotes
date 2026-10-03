@@ -470,6 +470,13 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         DrawableCompat.wrap(base.mutate()).also { DrawableCompat.setTint(it, color) }
     }
 
+    /** One icon per category, shared like [noteIcon]: a whole city is ~800 fixmes per redraw. */
+    private val categoryIcons = HashMap<Int, Drawable>()
+
+    private fun categoryIcon(resId: Int): Drawable = categoryIcons.getOrPut(resId) {
+        resources.getDrawable(resId, null)
+    }
+
     private fun displayPoisOnMap(rows: List<PoiWithNote>) {
         // Clear existing POI markers
         poiMarkers.forEach { marker ->
@@ -493,17 +500,17 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
                     resources.getDrawable(android.R.drawable.ic_menu_upload, null)
                 } else if (note != null) {
                     noteIcon(AudienceColors.colorForLabels(note.labels))
-                } else when (poi.category) {
-                    PoiCategory.TOURIST_ATTRACTION -> resources.getDrawable(android.R.drawable.star_on, null)
-                    PoiCategory.RESTAURANT -> resources.getDrawable(android.R.drawable.ic_menu_myplaces, null)
-                    PoiCategory.SHOP -> resources.getDrawable(android.R.drawable.ic_menu_manage, null)
-                    PoiCategory.PUBLIC_TRANSPORT -> resources.getDrawable(android.R.drawable.ic_menu_directions, null)
-                    PoiCategory.AMENITY -> resources.getDrawable(android.R.drawable.ic_menu_recent_history, null)
-                    PoiCategory.HISTORIC -> resources.getDrawable(android.R.drawable.ic_menu_gallery, null)
-                    PoiCategory.NATURAL -> resources.getDrawable(android.R.drawable.ic_menu_mapmode, null)
-                    PoiCategory.INFRASTRUCTURE -> resources.getDrawable(android.R.drawable.ic_menu_report_image, null)
-                    PoiCategory.UNKNOWN -> resources.getDrawable(android.R.drawable.ic_menu_info_details, null)
-                }
+                } else categoryIcon(when (poi.category) {
+                    PoiCategory.TOURIST_ATTRACTION -> android.R.drawable.star_on
+                    PoiCategory.RESTAURANT -> android.R.drawable.ic_menu_myplaces
+                    PoiCategory.SHOP -> android.R.drawable.ic_menu_manage
+                    PoiCategory.PUBLIC_TRANSPORT -> android.R.drawable.ic_menu_directions
+                    PoiCategory.AMENITY -> android.R.drawable.ic_menu_recent_history
+                    PoiCategory.HISTORIC -> android.R.drawable.ic_menu_gallery
+                    PoiCategory.NATURAL -> android.R.drawable.ic_menu_mapmode
+                    PoiCategory.INFRASTRUCTURE -> android.R.drawable.ic_menu_report_image
+                    PoiCategory.UNKNOWN -> android.R.drawable.ic_menu_info_details
+                })
 
                 // Set click listener for info window
                 setOnMarkerClickListener { marker, mapView ->

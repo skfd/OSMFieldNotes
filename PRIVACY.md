@@ -31,7 +31,10 @@ uploaded anywhere by the app.
 - To fetch notes and fixmes the app sends a bounding box (a rectangle of roughly the fetch
   radius you chose, 1 to 5 km, around your position) to `api.openstreetmap.org` and to
   `overpass-api.de`. The server sees that rectangle and your IP address, not your exact fix
-  and not your track.
+  and not your track. With the fetch area set to a whole city, both see only the city (its
+  bounding box, its boundary id), wherever you are in it.
+- When you pick "Whole city" in Settings, and only then, your position (or the map centre)
+  is sent once to `nominatim.openstreetmap.org` to find which city it is in.
 - Map tiles come from the standard OpenStreetMap tile server through the osmdroid library.
   The tile server sees which map area you look at, at which zoom, and your IP address. Tiles
   are cached in the app's private cache directory.
@@ -72,10 +75,11 @@ https://www.openstreetmap.org/oauth2/authorized_applications at any time.
 | --- | --- | --- |
 | `api.openstreetmap.org` | fetching notes; posting note actions | bounding box; note id, your text, your token (only when logged in) |
 | `www.openstreetmap.org` | login, logout | the OAuth 2.0 authorization flow; token revoke |
-| `overpass-api.de` | fetching fixmes | an Overpass QL query with a bounding box |
+| `overpass-api.de` | fetching fixmes | an Overpass QL query with a bounding box, or a city's boundary id |
+| `nominatim.openstreetmap.org` | picking "Whole city" in Settings | one coordinate pair |
 | `tile.openstreetmap.org` | showing the map | tile coordinates |
 
-Requests to the OSM API and Overpass carry the User-Agent `OSMFieldNotes/<version>`; map tile
+Requests to the OSM API, Overpass and Nominatim carry the User-Agent `OSMFieldNotes/<version>`; map tile
 requests carry the package id, as osmdroid's usage policy requires. Nothing else is sent: no
 device id, no advertising id, no usage statistics.
 

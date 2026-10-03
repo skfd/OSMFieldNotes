@@ -303,7 +303,7 @@ class NearbyFetcherTest {
         fetch()
         now += 20 * MIN
         assertFalse("15 min staleness is for circles", fetcher.wantsRefetch(latAfterMoving(10_000), LON))
-        assertBothSkipped(fetch(lat = latAfterMoving(10_000)), "not moved far enough")
+        assertBothSkipped(fetch(lat = latAfterMoving(10_000)), "city fetched under an hour ago")
         now += 41 * MIN
         assertTrue(fetcher.wantsRefetch(LAT, LON))
         assertBothFetched(fetch())

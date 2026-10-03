@@ -12,6 +12,7 @@ Roadmap items 2 through 17 were built on 2026-09-25 and 2026-09-26 without a dev
 - Map tab, north up: no compass button. Twist the map with two fingers: a needle appears top right, its red tip pointing where north now is on the map (follow a north-south street). Keep twisting: the needle follows. Tap it: the map turns back to north up and the button disappears.
 - Settings > Fetch area > Whole city…, standing in Toronto: "Fetch all of Toronto?"; Use this city: the row says Toronto and the toast shows about 330 notes and 800 fixmes found.
 - Map zoomed out to the whole city: all pins drawn; pan and pinch, note whether it drags on the phone.
+- Map tab open while tracking in a whole city, let a ping fire: does the map hitch while ~1100 pins are rebuilt?
 - Start tracking and walk: no `fetching` lines in the log for an hour (`city stale, 6xmin old` after that).
 - Pick 2 km again: the next fetch logs `area changed city:324211 to r2000` and the far pins go.
 
