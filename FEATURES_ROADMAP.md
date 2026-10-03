@@ -111,6 +111,6 @@ Cut from the old list on purpose. Revisit only if the loop is done and a user as
 
 ## Open decisions
 
-- **License.** `origin/main` carries an MIT LICENSE added 2026-06-05; CLAUDE.md says GPL-3.0. Must be one or the other before the eleven local commits are pushed.
+- **License.** The repo's LICENSE is MIT (added on GitHub 2026-06-05, merged and pushed 2026-10-03 with the decision still open); CLAUDE.md says GPL-3.0. Must be one or the other before a store release.
 - **F-Droid vs Play Services.** The app uses Google Play Services location, which F-Droid will not build. Either drop the F-Droid channel or switch to the platform LocationManager (which the Notes tab already uses for distance). Decide before item 12.
 - **Package id.** `com.surveyme` is baked into the manifest and any existing installs. Changing it means a fresh install for everyone; fine now, costly after release.

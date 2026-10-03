@@ -6,7 +6,7 @@ Short checklist. FIRST_RUN.md explains the one-time keystore setup; PRIVACY.md a
 ## Blockers before the first public release
 
 - **License.** The roadmap's "Open decisions" still has MIT vs GPL-3.0 unresolved. Pick one,
-  make the LICENSE file and CLAUDE.md agree, and only then publish or push.
+  make the LICENSE file and CLAUDE.md agree, and only then publish. (The MIT LICENSE from GitHub is merged and pushed as a placeholder.)
 - **Keystore.** A release keystore must exist outside the repo and be wired in
   `local.properties` (FIRST_RUN.md). The same key signs every future update; losing it means
   a new package id.
