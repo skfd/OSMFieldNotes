@@ -15,7 +15,19 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-
+    <!-- Map-north needle: shown only while the map is turned away from north; tap to turn it back. -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabCompass"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/map_reset_north"
+        android:visibility="gone"
+        app:fabSize="mini"
+        app:tint="@null"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/ic_compass_needle" />
 
     <!-- Item 7: a new note where the walker stands. Long-pressing the map places one elsewhere. -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton

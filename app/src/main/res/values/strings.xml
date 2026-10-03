@@ -11,6 +11,7 @@
     <!-- Map -->
     <string name="my_location">My Location</string>
     <string name="zoom_in">Zoom In</string>
+    <string name="map_reset_north">Turn the map back to north up</string>
     <string name="zoom_out">Zoom Out</string>
     <string name="map_loading">Loading map…</string>
     <string name="map_click">Map clicked at: %1$.4f, %2$.4f</string>

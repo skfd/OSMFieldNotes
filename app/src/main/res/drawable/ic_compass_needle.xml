@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Map-north needle for the map's compass button: red half points north, grey half south.
+     Not tinted by the FAB (app:tint="@null" on the button) so the red reads as north. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#D32F2F"
+        android:pathData="M12,2L16,12L8,12Z" />
+    <path
+        android:fillColor="#757575"
+        android:pathData="M12,22L8,12L16,12Z" />
+</vector>

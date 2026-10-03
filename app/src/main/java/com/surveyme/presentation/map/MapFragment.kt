@@ -19,8 +19,8 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.CustomZoomButtonsController
 import org.osmdroid.views.overlay.MapEventsOverlay
-import org.osmdroid.views.overlay.compass.CompassOverlay
-import org.osmdroid.views.overlay.compass.InternalCompassOrientationProvider
+import org.osmdroid.views.Projection
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
@@ -29,6 +29,7 @@ import org.osmdroid.views.overlay.Polyline
 import timber.log.Timber
 import java.io.File
 import android.content.Intent
+import android.graphics.Canvas
 import android.graphics.Color
 import androidx.lifecycle.lifecycleScope
 import com.surveyme.data.PoiManager
@@ -62,7 +63,6 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
     private var preferencesManager: PreferencesManager? = null
     private var permissionManager: PermissionManager? = null
     private var myLocationOverlay: MyLocationNewOverlay? = null
-    private var compassOverlay: CompassOverlay? = null
     private var rotationGestureOverlay: RotationGestureOverlay? = null
     private val poiMarkers = mutableListOf<Marker>()
     private var activeTrackPolyline: Polyline? = null
@@ -239,6 +239,7 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
 
             // Tap and long-press (create a note there, item 7) need no location permission.
             overlays.add(0, MapEventsOverlay(this@MapFragment))
+            overlays.add(NorthNeedleOverlay(binding.fabCompass))
 
             Timber.d("Map initialized at: $startPoint, zoom: ${Constants.DEFAULT_MAP_ZOOM}")
         }
@@ -258,12 +259,6 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         }
         binding.mapView.overlays.add(myLocationOverlay)
 
-        // Add compass overlay
-        compassOverlay = CompassOverlay(requireContext(), InternalCompassOrientationProvider(requireContext()), binding.mapView).apply {
-            enableCompass()
-        }
-        binding.mapView.overlays.add(compassOverlay)
-
         // Add rotation gesture overlay
         rotationGestureOverlay = RotationGestureOverlay(binding.mapView).apply {
             isEnabled = true
@@ -274,6 +269,10 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
     }
 
     private fun setupClickListeners() {
+        binding.fabCompass.setOnClickListener {
+            binding.mapView.controller.animateTo(binding.mapView.mapCenter, binding.mapView.zoomLevelDouble, NORTH_UP_ANIMATION_MILLIS, 0f)
+        }
+
         binding.fabMyLocation.setOnClickListener {
             myLocationOverlay?.myLocation?.let { location ->
                 binding.mapView.controller.animateTo(location)
@@ -420,14 +419,12 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         super.onResume()
         binding.mapView.onResume()
         myLocationOverlay?.enableMyLocation()
-        compassOverlay?.enableCompass()
     }
 
     override fun onPause() {
         super.onPause()
         binding.mapView.onPause()
         myLocationOverlay?.disableMyLocation()
-        compassOverlay?.disableCompass()
         saveMapPosition()
     }
 
@@ -545,6 +542,28 @@ class MapFragment : BaseFragment<FragmentMapBinding>(), MapEventsReceiver {
         binding.mapView.invalidate()
 
         Timber.d("Displayed ${rows.size} POIs on map")
+    }
+
+    /**
+     * Points [needle] at map north. osmdroid's CompassOverlay draws the phone's sensor heading
+     * and ignores a two-finger rotation, so after one it showed a north the map no longer had.
+     * This draws nothing itself: draw runs on every frame the map changes, gesture or animation,
+     * which is the one hook that sees every rotation. The needle hides while the map is north up.
+     */
+    private class NorthNeedleOverlay(private val needle: View) : Overlay() {
+        override fun draw(canvas: Canvas, projection: Projection) {
+            val orientation = ((projection.orientation % 360f) + 360f) % 360f
+            needle.rotation = orientation
+            val northUp = orientation < NORTH_UP_TOLERANCE_DEGREES || orientation > 360f - NORTH_UP_TOLERANCE_DEGREES
+            val wanted = if (northUp) View.GONE else View.VISIBLE
+            // Not mid-draw: a visibility change asks for a layout.
+            if (needle.visibility != wanted) needle.post { needle.visibility = wanted }
+        }
+    }
+
+    companion object {
+        private const val NORTH_UP_ANIMATION_MILLIS = 400L
+        private const val NORTH_UP_TOLERANCE_DEGREES = 0.5f
     }
 
     override fun onDestroyView() {
